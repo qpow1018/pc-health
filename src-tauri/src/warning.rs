@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::domain::{Indication, IndicationLevel, SensorReading, SensorValue};
+use crate::domain::{Indication, IndicationLevel, SensorReading, SensorSnapshot, SensorValue};
 
 const SUSTAINED_SECONDS: i64 = 10;
 
@@ -16,11 +16,20 @@ pub struct WarningEvaluator {
 }
 
 impl WarningEvaluator {
-    pub fn evaluate(&mut self, readings: &mut [SensorReading], now_seconds: i64) {
-        self.crossed_at
-            .retain(|kind, _| readings.iter().any(|reading| reading.kind == *kind));
+    pub fn evaluate(&mut self, snapshot: &mut SensorSnapshot, now_seconds: i64) {
+        self.crossed_at.retain(|kind, _| {
+            snapshot
+                .devices
+                .iter()
+                .flat_map(|device| device.readings.iter())
+                .any(|reading| reading.kind == *kind)
+        });
 
-        for reading in readings {
+        for reading in snapshot
+            .devices
+            .iter_mut()
+            .flat_map(|device| device.readings.iter_mut())
+        {
             reading.indication = None;
 
             let SensorValue::Available { value, .. } = &reading.value else {
@@ -113,18 +122,29 @@ fn memory_indication(level: IndicationLevel) -> Indication {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{IndicationLevel, SensorReading, SensorValue};
+    use crate::collector::{MockCollector, MockScenario, SensorCollector};
+    use crate::domain::{IndicationLevel, SensorReading, SensorSnapshot, SensorValue};
 
-    fn available(kind: &str, label: &str, value: f64) -> SensorReading {
-        SensorReading {
-            kind: kind.into(),
-            label: label.into(),
-            value: SensorValue::Available {
-                value,
-                unit: String::new(),
-            },
-            indication: None,
-        }
+    fn collect(scenario: MockScenario) -> SensorSnapshot {
+        MockCollector::new().collect(scenario, "2026-06-15T00:00:00Z".into())
+    }
+
+    fn reading<'a>(snapshot: &'a SensorSnapshot, kind: &str) -> &'a SensorReading {
+        snapshot
+            .devices
+            .iter()
+            .flat_map(|device| device.readings.iter())
+            .find(|reading| reading.kind == kind)
+            .unwrap()
+    }
+
+    fn reading_mut<'a>(snapshot: &'a mut SensorSnapshot, kind: &str) -> &'a mut SensorReading {
+        snapshot
+            .devices
+            .iter_mut()
+            .flat_map(|device| device.readings.iter_mut())
+            .find(|reading| reading.kind == kind)
+            .unwrap()
     }
 
     fn level(reading: &SensorReading) -> Option<&IndicationLevel> {
@@ -137,103 +157,113 @@ mod tests {
     #[test]
     fn cpu_temperature_requires_ten_sustained_seconds_before_warning() {
         let mut evaluator = WarningEvaluator::default();
-        let mut readings = vec![available("cpu_temperature", "CPU 온도", 90.0)];
+        let mut snapshot = collect(MockScenario::Threshold);
 
-        evaluator.evaluate(&mut readings, 100);
-        assert_eq!(level(&readings[0]), None);
+        evaluator.evaluate(&mut snapshot, 100);
+        assert_eq!(level(reading(&snapshot, "cpu_temperature")), None);
 
-        evaluator.evaluate(&mut readings, 109);
-        assert_eq!(level(&readings[0]), None);
+        evaluator.evaluate(&mut snapshot, 109);
+        assert_eq!(level(reading(&snapshot, "cpu_temperature")), None);
 
-        evaluator.evaluate(&mut readings, 110);
-        assert_eq!(level(&readings[0]), Some(&IndicationLevel::Warning));
+        evaluator.evaluate(&mut snapshot, 110);
+        let cpu_temperature = reading(&snapshot, "cpu_temperature");
+        assert_eq!(level(cpu_temperature), Some(&IndicationLevel::Warning));
         assert_eq!(
-            readings[0].indication.as_ref().unwrap().message,
-            "CPU 온도가 일반적인 권장 범위보다 높습니다."
+            cpu_temperature.indication.as_ref().unwrap().message,
+            "온도가 일반적인 권장 범위보다 높습니다."
         );
     }
 
     #[test]
     fn unavailable_gpu_temperature_clears_its_timer() {
         let mut evaluator = WarningEvaluator::default();
-        let mut readings = vec![available("gpu_temperature", "GPU 온도", 85.0)];
+        let mut snapshot = collect(MockScenario::Threshold);
 
-        evaluator.evaluate(&mut readings, 100);
-        readings[0].value = SensorValue::Waiting;
-        evaluator.evaluate(&mut readings, 109);
-        assert_eq!(level(&readings[0]), None);
+        evaluator.evaluate(&mut snapshot, 100);
+        snapshot = collect(MockScenario::Unsupported);
+        evaluator.evaluate(&mut snapshot, 109);
+        assert_eq!(level(reading(&snapshot, "gpu_temperature")), None);
 
-        readings[0].value = SensorValue::Available {
-            value: 85.0,
-            unit: "C".into(),
-        };
-        evaluator.evaluate(&mut readings, 110);
-        evaluator.evaluate(&mut readings, 119);
-        assert_eq!(level(&readings[0]), None);
+        snapshot = collect(MockScenario::Threshold);
+        evaluator.evaluate(&mut snapshot, 110);
+        evaluator.evaluate(&mut snapshot, 119);
+        assert_eq!(level(reading(&snapshot, "gpu_temperature")), None);
 
-        evaluator.evaluate(&mut readings, 120);
-        assert_eq!(level(&readings[0]), Some(&IndicationLevel::Warning));
+        evaluator.evaluate(&mut snapshot, 120);
+        assert_eq!(
+            level(reading(&snapshot, "gpu_temperature")),
+            Some(&IndicationLevel::Warning)
+        );
     }
 
     #[test]
     fn temperature_level_transition_restarts_the_sustained_timer() {
         let mut evaluator = WarningEvaluator::default();
-        let mut readings = vec![available("cpu_temperature", "CPU 온도", 82.0)];
+        let mut snapshot = collect(MockScenario::Normal);
+        reading_mut(&mut snapshot, "cpu_temperature").value = SensorValue::Available {
+            value: 82.0,
+            unit: "C".into(),
+        };
 
-        evaluator.evaluate(&mut readings, 100);
-        evaluator.evaluate(&mut readings, 110);
-        assert_eq!(level(&readings[0]), Some(&IndicationLevel::Advisory));
+        evaluator.evaluate(&mut snapshot, 100);
+        evaluator.evaluate(&mut snapshot, 110);
+        assert_eq!(
+            level(reading(&snapshot, "cpu_temperature")),
+            Some(&IndicationLevel::Advisory)
+        );
 
-        readings[0].value = SensorValue::Available {
+        reading_mut(&mut snapshot, "cpu_temperature").value = SensorValue::Available {
             value: 90.0,
             unit: "C".into(),
         };
-        evaluator.evaluate(&mut readings, 111);
-        evaluator.evaluate(&mut readings, 120);
-        assert_eq!(level(&readings[0]), None);
+        evaluator.evaluate(&mut snapshot, 111);
+        evaluator.evaluate(&mut snapshot, 120);
+        assert_eq!(level(reading(&snapshot, "cpu_temperature")), None);
 
-        evaluator.evaluate(&mut readings, 121);
-        assert_eq!(level(&readings[0]), Some(&IndicationLevel::Warning));
+        evaluator.evaluate(&mut snapshot, 121);
+        assert_eq!(
+            level(reading(&snapshot, "cpu_temperature")),
+            Some(&IndicationLevel::Warning)
+        );
     }
 
     #[test]
     fn memory_warning_is_immediate_and_gpu_usage_reports_high_load() {
         let mut evaluator = WarningEvaluator::default();
-        let mut readings = vec![
-            available("memory_usage", "메모리 사용률", 95.0),
-            available("gpu_usage", "GPU 사용률", 90.0),
-        ];
+        let mut snapshot = collect(MockScenario::Threshold);
 
-        evaluator.evaluate(&mut readings, 100);
+        evaluator.evaluate(&mut snapshot, 100);
 
-        assert_eq!(level(&readings[0]), Some(&IndicationLevel::Warning));
+        let memory_usage = reading(&snapshot, "memory_usage");
+        assert_eq!(level(memory_usage), Some(&IndicationLevel::Warning));
         assert_eq!(
-            readings[0].indication.as_ref().unwrap().message,
+            memory_usage.indication.as_ref().unwrap().message,
             "메모리 사용률이 일반적인 권장 범위보다 높습니다."
         );
-        assert_eq!(level(&readings[1]), Some(&IndicationLevel::HighLoad));
-        assert_eq!(
-            readings[1].indication.as_ref().unwrap().message,
-            "높은 부하"
-        );
+        let gpu_usage = reading(&snapshot, "gpu_usage");
+        assert_eq!(level(gpu_usage), Some(&IndicationLevel::HighLoad));
+        assert_eq!(gpu_usage.indication.as_ref().unwrap().message, "높은 부하");
     }
 
     #[test]
     fn unmatched_kind_clears_timer_and_indication() {
         let mut evaluator = WarningEvaluator::default();
-        let mut readings = vec![available("cpu_temperature", "CPU 온도", 90.0)];
+        let mut snapshot = collect(MockScenario::Threshold);
 
-        evaluator.evaluate(&mut readings, 100);
-        readings[0].kind = "cpu_clock".into();
-        evaluator.evaluate(&mut readings, 109);
-        assert_eq!(level(&readings[0]), None);
+        evaluator.evaluate(&mut snapshot, 100);
+        reading_mut(&mut snapshot, "cpu_temperature").kind = "unmatched_temperature".into();
+        evaluator.evaluate(&mut snapshot, 109);
+        assert_eq!(level(reading(&snapshot, "unmatched_temperature")), None);
 
-        readings[0].kind = "cpu_temperature".into();
-        evaluator.evaluate(&mut readings, 110);
-        evaluator.evaluate(&mut readings, 119);
-        assert_eq!(level(&readings[0]), None);
+        reading_mut(&mut snapshot, "unmatched_temperature").kind = "cpu_temperature".into();
+        evaluator.evaluate(&mut snapshot, 110);
+        evaluator.evaluate(&mut snapshot, 119);
+        assert_eq!(level(reading(&snapshot, "cpu_temperature")), None);
 
-        evaluator.evaluate(&mut readings, 120);
-        assert_eq!(level(&readings[0]), Some(&IndicationLevel::Warning));
+        evaluator.evaluate(&mut snapshot, 120);
+        assert_eq!(
+            level(reading(&snapshot, "cpu_temperature")),
+            Some(&IndicationLevel::Warning)
+        );
     }
 }
