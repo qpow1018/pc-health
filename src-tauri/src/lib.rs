@@ -1,3 +1,4 @@
+mod collector;
 mod domain;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
