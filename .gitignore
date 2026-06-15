@@ -20,6 +20,7 @@ src-tauri/target
 *.sqlite
 *.sqlite3
 recordings/
+.superpowers/
 
 # Editor directories and files
 .vscode/*
