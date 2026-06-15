@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SensorRuntimeUnavailableError } from "./api";
 import { useSensorSnapshot } from "./useSensorSnapshot";
 import type { MockScenario, SensorSnapshot } from "./types";
 
@@ -47,6 +48,21 @@ describe("useSensorSnapshot", () => {
     expect(result.current.error).toBe(
       "센서 데이터를 불러오지 못했습니다. 다시 시도합니다.",
     );
+  });
+
+  it("explains when the page is not running inside Tauri", async () => {
+    const load = vi.fn().mockRejectedValue(new SensorRuntimeUnavailableError());
+
+    const { result } = renderHook(() => useSensorSnapshot("normal", load));
+    await act(async () => Promise.resolve());
+
+    expect(result.current.snapshot).toBeNull();
+    expect(result.current.error).toBe(
+      "Tauri 앱에서 실행해야 센서 데이터를 불러올 수 있습니다.",
+    );
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it("loads immediately when the scenario changes", async () => {
