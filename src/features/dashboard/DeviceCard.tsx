@@ -2,7 +2,7 @@ import type {
   DeviceSnapshot,
   IndicationLevel,
   SensorValue,
-} from "../sensors/types";
+} from "@/features/sensors/types";
 
 const levelRank: Record<IndicationLevel, number> = {
   "high-load": 1,

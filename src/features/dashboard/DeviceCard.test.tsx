@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import DeviceCard from "./DeviceCard";
-import type { DeviceSnapshot } from "../sensors/types";
+import type { DeviceSnapshot } from "@/features/sensors/types";
 
 const device: DeviceSnapshot = {
   kind: "gpu",

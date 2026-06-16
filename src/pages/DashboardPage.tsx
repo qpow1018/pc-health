@@ -1,10 +1,9 @@
-import "./App.css";
 import { useState } from "react";
-import Dashboard from "./components/Dashboard";
-import type { MockScenario } from "./sensors/types";
-import { useSensorSnapshot } from "./sensors/useSensorSnapshot";
+import Dashboard from "@/features/dashboard/Dashboard";
+import type { MockScenario } from "@/features/sensors/types";
+import { useSensorSnapshot } from "@/features/sensors/useSensorSnapshot";
 
-function App() {
+export default function DashboardPage() {
   const [scenario, setScenario] = useState<MockScenario>("normal");
   const { snapshot, error } = useSensorSnapshot(scenario);
 
@@ -17,5 +16,3 @@ function App() {
     />
   );
 }
-
-export default App;

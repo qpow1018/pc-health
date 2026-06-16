@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import Dashboard from "./Dashboard";
-import type { SensorSnapshot } from "../sensors/types";
+import type { SensorSnapshot } from "@/features/sensors/types";
 
 const snapshot: SensorSnapshot = {
   collectedAt: "2026-06-15T12:00:00Z",

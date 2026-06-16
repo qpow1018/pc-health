@@ -1,5 +1,5 @@
 import DeviceCard from "./DeviceCard";
-import type { MockScenario, SensorSnapshot } from "../sensors/types";
+import type { MockScenario, SensorSnapshot } from "@/features/sensors/types";
 
 const scenarios: Array<{ value: MockScenario; label: string }> = [
   { value: "normal", label: "정상" },
