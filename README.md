@@ -20,6 +20,12 @@ npm install
 npm run tauri dev
 ```
 
+## Windows Test Build
+
+The Windows PC does not need the full development toolchain for basic app testing.
+Run the `Windows Build` GitHub Actions workflow, then download the generated
+artifact from the completed workflow run and install or run it on Windows.
+
 ## License
 
 MIT
