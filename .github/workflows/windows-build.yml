@@ -31,5 +31,12 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.2
         with:
           tauriScript: npm run tauri
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: pc-health-[platform]-[arch]-[bundle]
+
+      - name: Upload Windows installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: pc-health-windows-installers
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
