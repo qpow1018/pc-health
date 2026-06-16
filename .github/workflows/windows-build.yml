@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Build and upload Windows artifact
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0.6.2
         with:
           tauriScript: npm run tauri
           uploadWorkflowArtifacts: true
