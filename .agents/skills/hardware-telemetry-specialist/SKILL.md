@@ -14,10 +14,10 @@ description: pc-health CPU/GPU/메모리 센서 수집, Rust snapshot contract, 
 - `docs/superpowers/specs/2026-06-15-windows-performance-monitor-design.md`
 - `docs/superpowers/specs/2026-06-15-mock-realtime-dashboard-design.md`
 - `src-tauri/src/domain.rs`
-- `src-tauri/src/collector.rs`
+- `src-tauri/src/collector/`
 - `src-tauri/src/service.rs`
 - `src-tauri/src/warning.rs`
-- `src/sensors/types.ts`
+- `src/features/sensors/types.ts`
 
 ## 작업 흐름
 1. Rust `domain.rs`를 authoritative wire contract로 취급한다.

@@ -11,9 +11,11 @@ description: pc-health의 하드웨어, 네트워크, 드라이버 화면에서 
 - 필요 없이 marketing landing page, 과하게 큰 hero section, 장식적인 card 나열, 새 design system을 만들지 않는다.
 
 ## 필요한 입력
-- `src/components/Dashboard.tsx`
-- `src/components/DeviceCard.tsx`
-- `src/App.css`
+- `src/features/dashboard/Dashboard.tsx`
+- `src/features/dashboard/DeviceCard.tsx`
+- `src/features/dashboard/Dashboard.module.css`
+- `src/features/dashboard/DeviceCard.module.css`
+- `src/app/global.css`
 - 현재 sensor state label과 warning copy.
 
 ## 작업 흐름
@@ -27,6 +29,8 @@ description: pc-health의 하드웨어, 네트워크, 드라이버 화면에서 
 4. 하드웨어, 네트워크, 드라이버 정보를 보이게 유지하되 모든 세부 사항을 하나의 복잡한 card에 밀어 넣지 않는다.
 5. 새 global design system보다 현재 component를 최소 확장하는 방식을 선호한다.
 6. 사용할 수 없는 데이터에도 안정적인 layout을 유지한다.
+7. 스타일은 plain CSS Modules와 native CSS nesting을 사용한다. 전역 reset, body, token은 `src/app/global.css`에만 두고, feature/component 스타일은 가까운 `*.module.css`에 둔다.
+8. JSX에서 CSS Module class는 `styles['class-name']` bracket access로 사용한다. 같은 폴더 import에는 `./`를 허용하고, 상위 폴더 접근 `../`는 피하며 다른 영역 접근은 `@/...` alias를 사용한다.
 
 ## 출력
 - 정보 구조 메모를 위한 `_workspace/02_ui_experience_findings.md`.

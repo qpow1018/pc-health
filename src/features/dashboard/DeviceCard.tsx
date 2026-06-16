@@ -3,6 +3,7 @@ import type {
   IndicationLevel,
   SensorValue,
 } from "@/features/sensors/types";
+import styles from "./DeviceCard.module.css";
 
 const levelRank: Record<IndicationLevel, number> = {
   "high-load": 1,
@@ -42,18 +43,18 @@ export default function DeviceCard({ device }: { device: DeviceSnapshot }) {
 
   return (
     <section
-      className="device-card"
+      className={styles["card"]}
       data-level={level}
       data-testid={`${device.kind}-card`}
     >
-      <header className="device-card__header">
-        <span className="device-card__kind">{device.kind.toUpperCase()}</span>
-        <h2>{device.name}</h2>
+      <header className={styles["header"]}>
+        <span className={styles["kind"]}>{device.kind.toUpperCase()}</span>
+        <h2 className={styles["title"]}>{device.name}</h2>
       </header>
-      <dl className="reading-list">
+      <dl className={styles["list"]}>
         {device.readings.map((reading) => (
           <div
-            className="reading"
+            className={styles["reading"]}
             data-level={reading.indication?.level}
             key={reading.kind}
           >

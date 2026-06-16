@@ -1,4 +1,5 @@
 import DeviceCard from "./DeviceCard";
+import styles from "./Dashboard.module.css";
 import type { MockScenario, SensorSnapshot } from "@/features/sensors/types";
 
 const scenarios: Array<{ value: MockScenario; label: string }> = [
@@ -23,18 +24,18 @@ export default function Dashboard({
   onScenarioChange,
 }: DashboardProps) {
   return (
-    <main className="app-shell">
-      <header className="dashboard-header">
+    <main className={styles["shell"]}>
+      <header className={styles["header"]}>
         <div>
-          <p className="eyebrow">READ-ONLY PERFORMANCE MONITOR</p>
-          <h1>PC Health</h1>
-          <p className="updated-at">
+          <p className={styles["eyebrow"]}>READ-ONLY PERFORMANCE MONITOR</p>
+          <h1 className={styles["title"]}>PC Health</h1>
+          <p className={styles["updated-at"]}>
             {snapshot
               ? `마지막 측정 ${new Date(snapshot.collectedAt).toLocaleTimeString("ko-KR")}`
               : "센서 데이터 연결 중"}
           </p>
         </div>
-        <label className="scenario-control">
+        <label className={styles["scenario-control"]}>
           <span>개발 시나리오</span>
           <select
             aria-label="개발 시나리오"
@@ -53,18 +54,18 @@ export default function Dashboard({
       </header>
 
       {error && (
-        <div className="dashboard-error" role="alert">
+        <div className={styles["error"]} role="alert">
           {error}
         </div>
       )}
 
-      <div className="device-grid">
+      <div className={styles["device-grid"]}>
         {snapshot?.devices.map((device) => (
           <DeviceCard device={device} key={device.kind} />
         ))}
       </div>
 
-      <p className="guidance-note">
+      <p className={styles["guidance-note"]}>
         표시 기준은 일반적인 권장 범위이며 장치 제조사의 공식 한계값이
         우선합니다.
       </p>

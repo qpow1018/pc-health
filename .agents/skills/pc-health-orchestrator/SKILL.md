@@ -12,7 +12,7 @@ description: pc-health 기능 작업에서 repo 조사, 좁은 설계, 구현 �
 
 ## 필요한 입력
 - 사용자 요청과 명시된 범위.
-- 현재 저장소 파일. 특히 `docs/superpowers/specs/`, `src-tauri/src/`, `src/sensors/`, `src/components/`.
+- 현재 저장소 파일. 특히 `docs/superpowers/specs/`, `src-tauri/src/`, `src/features/sensors/`, `src/features/dashboard/`, `src/pages/`.
 - 작업 트리에 이미 존재하는 변경 파일.
 
 ## 아키텍처

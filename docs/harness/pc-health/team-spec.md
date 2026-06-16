@@ -52,6 +52,8 @@
 - 네트워크 진단은 local NIC에서 gateway, DNS, public reachability 순서로 진행한다.
 - 별도 승인된 설치 phase가 없으면 드라이버 inventory는 읽기 전용으로 유지한다.
 - UI 상태는 normal, caution, danger, unknown을 일관되게 구분한다.
+- Frontend import는 같은 폴더의 `./`만 상대경로로 허용하고, 상위 폴더 접근 `../`는 피한다. 다른 영역은 `@/...` alias를 사용한다.
+- Frontend 스타일은 `src/app/global.css`와 plain CSS Modules(`*.module.css`)를 사용한다. module CSS는 native nesting을 허용하고 JSX에서는 `styles['class-name']` 형태로 접근한다.
 - AGENTS.md는 짧고 repo-wide하게 유지하고, 긴 역할 지침은 `.agents/skills/` 또는 `docs/harness/`에 둔다.
 
 ## 실패 정책

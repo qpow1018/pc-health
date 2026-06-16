@@ -11,7 +11,7 @@ description: pc-health에서 local NIC, gateway, DNS, public internet reachabili
 
 ## 필요한 입력
 - `src-tauri/src/lib.rs`의 현재 Tauri command 패턴.
-- `src/components/`의 기존 frontend 상태와 status-display 패턴.
+- `src/features/dashboard/`와 `src/app/global.css`의 기존 frontend 상태와 status-display 패턴.
 - 사용자가 승인한 진단 깊이와 외부 요청 허용 여부.
 
 ## 진단 순서
