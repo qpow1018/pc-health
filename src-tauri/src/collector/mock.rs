@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+use crate::collector::SensorCollector;
 use crate::domain::{DeviceKind, DeviceSnapshot, SensorReading, SensorSnapshot, SensorValue};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
@@ -11,10 +12,6 @@ pub enum MockScenario {
     Unsupported,
     Waiting,
     Error,
-}
-
-pub trait SensorCollector {
-    fn collect(&mut self, scenario: MockScenario, collected_at: String) -> SensorSnapshot;
 }
 
 #[derive(Default)]
@@ -233,7 +230,7 @@ mod tests {
             .collect();
         assert_eq!(
             first_values,
-            [42.0, 61.0, 4.2, 72.0, 71.0, 67.0, 2.5, 185.0, 68.0, 7.2, 54.0, 17.3]
+            [42.0, 61.0, 4.2, 72.0, 71.0, 67.0, 2.5, 185.0, 68.0, 7.2, 54.0, 17.3,]
         );
         assert_eq!(available_value(&second.devices[0].readings[0].value), 43.0);
         assert!((available_value(&second.devices[2].readings[1].value) - 17.4).abs() < 1e-12);

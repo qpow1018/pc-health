@@ -4,21 +4,25 @@ use crate::{
     warning::WarningEvaluator,
 };
 
-pub struct SnapshotService {
-    collector: MockCollector,
+pub struct SnapshotService<C = MockCollector> {
+    collector: C,
     warnings: WarningEvaluator,
 }
 
 impl Default for SnapshotService {
     fn default() -> Self {
-        Self {
-            collector: MockCollector::new(),
-            warnings: WarningEvaluator::default(),
-        }
+        Self::new(MockCollector::new())
     }
 }
 
-impl SnapshotService {
+impl<C: SensorCollector> SnapshotService<C> {
+    pub fn new(collector: C) -> Self {
+        Self {
+            collector,
+            warnings: WarningEvaluator::default(),
+        }
+    }
+
     pub fn snapshot_at(
         &mut self,
         scenario: MockScenario,
@@ -34,7 +38,22 @@ impl SnapshotService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::IndicationLevel;
+    use crate::domain::{DeviceKind, DeviceSnapshot, IndicationLevel};
+
+    struct StaticCollector;
+
+    impl SensorCollector for StaticCollector {
+        fn collect(&mut self, _scenario: MockScenario, collected_at: String) -> SensorSnapshot {
+            SensorSnapshot {
+                collected_at,
+                devices: vec![DeviceSnapshot {
+                    kind: DeviceKind::Memory,
+                    name: "Injected Memory".into(),
+                    readings: vec![],
+                }],
+            }
+        }
+    }
 
     #[test]
     fn service_combines_collection_and_stateful_evaluation() {
@@ -55,5 +74,15 @@ mod tests {
                 .map(|item| item.level.clone()),
             Some(IndicationLevel::Warning),
         );
+    }
+
+    #[test]
+    fn service_accepts_an_injected_collector() {
+        let mut service = SnapshotService::new(StaticCollector);
+
+        let snapshot = service.snapshot_at(MockScenario::Normal, "collected".into(), 100);
+
+        assert_eq!(snapshot.collected_at, "collected");
+        assert_eq!(snapshot.devices[0].name, "Injected Memory");
     }
 }
