@@ -29,7 +29,7 @@ use windows_sys::Win32::{
 
 #[cfg(target_os = "windows")]
 use windows::{
-    core::{w, Interface, BSTR, PCWSTR, VARIANT},
+    core::{w, BSTR, PCWSTR},
     Win32::{
         Foundation::RPC_E_TOO_LATE,
         System::{
@@ -38,7 +38,7 @@ use windows::{
                 CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT,
                 RPC_C_IMP_LEVEL_IMPERSONATE,
             },
-            Variant::{VariantClear, VT_BSTR, VT_R4, VT_R8},
+            Variant::{VariantClear, VARIANT, VT_BSTR, VT_R4, VT_R8},
             Wmi::{
                 IWbemClassObject, IWbemContext, IWbemLocator, WbemLocator, WBEM_FLAG_FORWARD_ONLY,
                 WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE,
