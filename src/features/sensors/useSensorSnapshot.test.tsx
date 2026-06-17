@@ -5,6 +5,10 @@ import { useSensorSnapshot } from "./useSensorSnapshot";
 import type { MockScenario, SensorSnapshot } from "./types";
 
 const snapshot: SensorSnapshot = { collectedAt: "now", devices: [] };
+const developmentSnapshot: SensorSnapshot = {
+  collectedAt: "development",
+  devices: [],
+};
 
 describe("useSensorSnapshot", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -18,8 +22,14 @@ describe("useSensorSnapshot", () => {
           resolveRequest = resolve;
         }),
     );
+    const development = vi.fn();
 
-    renderHook(() => useSensorSnapshot("normal", load));
+    renderHook(() =>
+      useSensorSnapshot("live", "normal", {
+        live: load,
+        development,
+      }),
+    );
     expect(load).toHaveBeenCalledTimes(1);
 
     await act(async () => vi.advanceTimersByTimeAsync(5_000));
@@ -38,8 +48,14 @@ describe("useSensorSnapshot", () => {
       .fn()
       .mockResolvedValueOnce(snapshot)
       .mockRejectedValueOnce(new Error("offline"));
+    const development = vi.fn();
 
-    const { result } = renderHook(() => useSensorSnapshot("normal", load));
+    const { result } = renderHook(() =>
+      useSensorSnapshot("live", "normal", {
+        live: load,
+        development,
+      }),
+    );
     await act(async () => Promise.resolve());
     expect(result.current.snapshot).toEqual(snapshot);
 
@@ -52,8 +68,14 @@ describe("useSensorSnapshot", () => {
 
   it("explains when the page is not running inside Tauri", async () => {
     const load = vi.fn().mockRejectedValue(new SensorRuntimeUnavailableError());
+    const development = vi.fn();
 
-    const { result } = renderHook(() => useSensorSnapshot("normal", load));
+    const { result } = renderHook(() =>
+      useSensorSnapshot("live", "normal", {
+        live: load,
+        development,
+      }),
+    );
     await act(async () => Promise.resolve());
 
     expect(result.current.snapshot).toBeNull();
@@ -67,14 +89,36 @@ describe("useSensorSnapshot", () => {
 
   it("loads immediately when the scenario changes", async () => {
     const load = vi.fn().mockResolvedValue(snapshot);
+    const development = vi.fn().mockResolvedValue(developmentSnapshot);
     const { rerender } = renderHook(
       ({ scenario }: { scenario: MockScenario }) =>
-        useSensorSnapshot(scenario, load),
+        useSensorSnapshot("development", scenario, {
+          live: load,
+          development,
+        }),
       { initialProps: { scenario: "normal" as MockScenario } },
     );
     await act(async () => Promise.resolve());
 
     rerender({ scenario: "error" });
-    expect(load).toHaveBeenLastCalledWith("error");
+    expect(development).toHaveBeenLastCalledWith("error", 0);
+  });
+
+  it("uses local mock snapshots in development mode without calling Tauri", async () => {
+    const live = vi.fn().mockRejectedValue(new SensorRuntimeUnavailableError());
+    const development = vi.fn().mockResolvedValue(developmentSnapshot);
+
+    const { result } = renderHook(() =>
+      useSensorSnapshot("development", "normal", {
+        live,
+        development,
+      }),
+    );
+    await act(async () => Promise.resolve());
+
+    expect(result.current.snapshot).toEqual(developmentSnapshot);
+    expect(result.current.error).toBeNull();
+    expect(live).not.toHaveBeenCalled();
+    expect(development).toHaveBeenCalledWith("normal", 0);
   });
 });

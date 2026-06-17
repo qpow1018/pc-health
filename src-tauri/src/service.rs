@@ -1,17 +1,17 @@
 use crate::{
-    collector::{MockCollector, MockScenario, SensorCollector},
+    collector::{MockScenario, PlatformCollector, SensorCollector},
     domain::SensorSnapshot,
     warning::WarningEvaluator,
 };
 
-pub struct SnapshotService<C = MockCollector> {
+pub struct SnapshotService<C = PlatformCollector> {
     collector: C,
     warnings: WarningEvaluator,
 }
 
 impl Default for SnapshotService {
     fn default() -> Self {
-        Self::new(MockCollector::new())
+        Self::new(PlatformCollector::new())
     }
 }
 

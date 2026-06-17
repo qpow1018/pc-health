@@ -1,3 +1,5 @@
+export type SensorMode = "live" | "development";
+
 export type MockScenario =
   | "normal"
   | "threshold"

@@ -6,6 +6,7 @@ use crate::domain::{DeviceKind, DeviceSnapshot, SensorReading, SensorSnapshot, S
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum MockScenario {
+    Live,
     #[default]
     Normal,
     Threshold,
@@ -115,7 +116,7 @@ impl SensorCollector for MockCollector {
                     },
                 );
             }
-            MockScenario::Normal | MockScenario::Threshold => {}
+            MockScenario::Live | MockScenario::Normal | MockScenario::Threshold => {}
         }
 
         SensorSnapshot {
@@ -161,6 +162,10 @@ mod tests {
     fn scenario_defaults_and_deserializes_from_kebab_case() {
         assert_eq!(MockScenario::default(), MockScenario::Normal);
         assert_eq!(
+            serde_json::from_str::<MockScenario>(r#""live""#).unwrap(),
+            MockScenario::Live
+        );
+        assert_eq!(
             serde_json::from_str::<MockScenario>(r#""unsupported""#).unwrap(),
             MockScenario::Unsupported
         );
@@ -170,6 +175,7 @@ mod tests {
     fn every_scenario_keeps_device_and_reading_order_stable() {
         for scenario in [
             MockScenario::Normal,
+            MockScenario::Live,
             MockScenario::Threshold,
             MockScenario::Unsupported,
             MockScenario::Waiting,

@@ -1,24 +1,43 @@
 import { useEffect, useState } from "react";
-import { getSensorSnapshot, SensorRuntimeUnavailableError } from "./api";
-import type { MockScenario, SensorSnapshot } from "./types";
+import { getLiveSensorSnapshot, SensorRuntimeUnavailableError } from "./api";
+import { getMockSensorSnapshot } from "./mockSnapshot";
+import type { MockScenario, SensorMode, SensorSnapshot } from "./types";
 
-type SnapshotLoader = (scenario: MockScenario) => Promise<SensorSnapshot>;
+type SnapshotLoaders = {
+  live: () => Promise<SensorSnapshot>;
+  development: (
+    scenario: MockScenario,
+    sampleIndex: number,
+  ) => Promise<SensorSnapshot>;
+};
+
+const defaultLoaders: SnapshotLoaders = {
+  live: getLiveSensorSnapshot,
+  development: getMockSensorSnapshot,
+};
 
 export function useSensorSnapshot(
+  mode: SensorMode,
   scenario: MockScenario,
-  load: SnapshotLoader = getSensorSnapshot,
+  loaders: SnapshotLoaders = defaultLoaders,
 ) {
   const [snapshot, setSnapshot] = useState<SensorSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { live, development } = loaders;
 
   useEffect(() => {
     let active = true;
+    let sampleIndex = 0;
     let timer: number | undefined;
 
     const poll = async () => {
       try {
-        const next = await load(scenario);
+        const next =
+          mode === "live"
+            ? await live()
+            : await development(scenario, sampleIndex);
         if (!active) return;
+        sampleIndex += 1;
         setSnapshot(next);
         setError(null);
       } catch (caughtError) {
@@ -39,7 +58,7 @@ export function useSensorSnapshot(
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [scenario, load]);
+  }, [mode, scenario, live, development]);
 
   return { snapshot, error };
 }

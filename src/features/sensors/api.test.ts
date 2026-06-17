@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSensorSnapshot, SensorRuntimeUnavailableError } from "./api";
+import { getLiveSensorSnapshot, SensorRuntimeUnavailableError } from "./api";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -19,16 +19,16 @@ describe("getSensorSnapshot", () => {
 
   it("invokes the stable Tauri command with the selected scenario", async () => {
     vi.mocked(invoke).mockResolvedValue({ collectedAt: "now", devices: [] });
-    await getSensorSnapshot("unsupported");
+    await getLiveSensorSnapshot();
     expect(invoke).toHaveBeenCalledWith("get_sensor_snapshot", {
-      scenario: "unsupported",
+      scenario: "live",
     });
   });
 
   it("rejects clearly when the Tauri runtime is unavailable", async () => {
     Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
 
-    await expect(getSensorSnapshot("normal")).rejects.toBeInstanceOf(
+    await expect(getLiveSensorSnapshot()).rejects.toBeInstanceOf(
       SensorRuntimeUnavailableError,
     );
     expect(invoke).not.toHaveBeenCalled();

@@ -18,9 +18,11 @@ describe("Dashboard", () => {
     const onScenarioChange = vi.fn();
     render(
       <Dashboard
+        mode="development"
         snapshot={snapshot}
         error={null}
         scenario="normal"
+        onModeChange={() => {}}
         onScenarioChange={onScenarioChange}
       />,
     );
@@ -28,6 +30,13 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("cpu-card")).toBeInTheDocument();
     expect(screen.getByTestId("gpu-card")).toBeInTheDocument();
     expect(screen.getByTestId("memory-card")).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", { name: "실제 모드" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.getByRole("button", { name: "개발 모드" }),
+    ).toHaveAttribute("aria-pressed", "true");
 
     await userEvent.selectOptions(
       screen.getByLabelText("개발 시나리오"),
@@ -39,13 +48,33 @@ describe("Dashboard", () => {
   it("keeps cards visible while showing a command error", () => {
     render(
       <Dashboard
+        mode="live"
         snapshot={snapshot}
         error="센서 데이터를 불러오지 못했습니다. 다시 시도합니다."
         scenario="normal"
+        onModeChange={() => {}}
         onScenarioChange={() => {}}
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("다시 시도합니다");
     expect(screen.getByTestId("cpu-card")).toBeInTheDocument();
+    expect(screen.queryByLabelText("개발 시나리오")).not.toBeInTheDocument();
+  });
+
+  it("switches between live and development modes", async () => {
+    const onModeChange = vi.fn();
+    render(
+      <Dashboard
+        mode="live"
+        snapshot={snapshot}
+        error={null}
+        scenario="normal"
+        onModeChange={onModeChange}
+        onScenarioChange={() => {}}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "개발 모드" }));
+    expect(onModeChange).toHaveBeenCalledWith("development");
   });
 });

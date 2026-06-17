@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MockScenario, SensorSnapshot } from "./types";
+import type { SensorSnapshot } from "./types";
 
 export class SensorRuntimeUnavailableError extends Error {
   constructor() {
@@ -8,10 +8,10 @@ export class SensorRuntimeUnavailableError extends Error {
   }
 }
 
-export function getSensorSnapshot(scenario: MockScenario) {
+export function getLiveSensorSnapshot() {
   if (!("__TAURI_INTERNALS__" in window)) {
     return Promise.reject(new SensorRuntimeUnavailableError());
   }
 
-  return invoke<SensorSnapshot>("get_sensor_snapshot", { scenario });
+  return invoke<SensorSnapshot>("get_sensor_snapshot", { scenario: "live" });
 }

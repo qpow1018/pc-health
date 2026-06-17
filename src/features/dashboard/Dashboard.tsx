@@ -1,6 +1,10 @@
 import DeviceCard from "./DeviceCard";
 import styles from "./Dashboard.module.css";
-import type { MockScenario, SensorSnapshot } from "@/features/sensors/types";
+import type {
+  MockScenario,
+  SensorMode,
+  SensorSnapshot,
+} from "@/features/sensors/types";
 
 const scenarios: Array<{ value: MockScenario; label: string }> = [
   { value: "normal", label: "정상" },
@@ -11,16 +15,20 @@ const scenarios: Array<{ value: MockScenario; label: string }> = [
 ];
 
 type DashboardProps = {
+  mode: SensorMode;
   snapshot: SensorSnapshot | null;
   error: string | null;
   scenario: MockScenario;
+  onModeChange: (mode: SensorMode) => void;
   onScenarioChange: (scenario: MockScenario) => void;
 };
 
 export default function Dashboard({
+  mode,
   snapshot,
   error,
   scenario,
+  onModeChange,
   onScenarioChange,
 }: DashboardProps) {
   return (
@@ -35,22 +43,42 @@ export default function Dashboard({
               : "센서 데이터 연결 중"}
           </p>
         </div>
-        <label className={styles["scenario-control"]}>
-          <span>개발 시나리오</span>
-          <select
-            aria-label="개발 시나리오"
-            value={scenario}
-            onChange={(event) =>
-              onScenarioChange(event.target.value as MockScenario)
-            }
-          >
-            {scenarios.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className={styles["controls"]}>
+          <div className={styles["mode-control"]} aria-label="실행 모드">
+            <button
+              aria-pressed={mode === "live"}
+              type="button"
+              onClick={() => onModeChange("live")}
+            >
+              실제 모드
+            </button>
+            <button
+              aria-pressed={mode === "development"}
+              type="button"
+              onClick={() => onModeChange("development")}
+            >
+              개발 모드
+            </button>
+          </div>
+          {mode === "development" && (
+            <label className={styles["scenario-control"]}>
+              <span>개발 시나리오</span>
+              <select
+                aria-label="개발 시나리오"
+                value={scenario}
+                onChange={(event) =>
+                  onScenarioChange(event.target.value as MockScenario)
+                }
+              >
+                {scenarios.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
       </header>
 
       {error && (
