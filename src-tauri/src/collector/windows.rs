@@ -9,7 +9,7 @@ use crate::domain::{
 #[cfg(target_os = "windows")]
 use std::{
     mem::{size_of, zeroed},
-    ptr::null_mut,
+    ptr::{null, null_mut},
     thread,
     time::Duration,
 };
@@ -19,10 +19,11 @@ use windows_sys::Win32::{
     Foundation::{ERROR_SUCCESS, FILETIME},
     System::{
         Registry::{
-            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_LOCAL_MACHINE, KEY_READ, REG_DWORD,
-            REG_SZ,
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ,
+            REG_DWORD, REG_SZ,
         },
-        SystemInformation::{GetSystemTimes, GlobalMemoryStatusEx, MEMORYSTATUSEX},
+        SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX},
+        Threading::GetSystemTimes,
     },
 };
 
@@ -232,7 +233,7 @@ fn read_registry_string(subkey: &str, value_name: &str) -> Result<String, String
         let result = RegQueryValueExW(
             key,
             value_name.as_ptr(),
-            null_mut(),
+            null(),
             &mut value_type,
             buffer.as_mut_ptr().cast(),
             &mut byte_len,
@@ -262,7 +263,7 @@ fn read_registry_dword(subkey: &str, value_name: &str) -> Result<u32, String> {
         let result = RegQueryValueExW(
             key,
             value_name.as_ptr(),
-            null_mut(),
+            null(),
             &mut value_type,
             (&mut value as *mut u32).cast(),
             &mut byte_len,
@@ -278,10 +279,10 @@ fn read_registry_dword(subkey: &str, value_name: &str) -> Result<u32, String> {
 }
 
 #[cfg(target_os = "windows")]
-fn open_registry_key(subkey: &str) -> Result<isize, String> {
+fn open_registry_key(subkey: &str) -> Result<HKEY, String> {
     unsafe {
         let subkey = to_wide(subkey);
-        let mut key = 0;
+        let mut key = null_mut();
         let result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.as_ptr(), 0, KEY_READ, &mut key);
         if result != ERROR_SUCCESS {
             Err("CPU 레지스트리 키를 열지 못했습니다.".into())
