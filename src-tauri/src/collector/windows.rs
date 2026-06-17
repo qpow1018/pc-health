@@ -411,7 +411,7 @@ fn parse_sensor_helper_output(stdout: &str) -> Result<Option<f64>, String> {
 
     Ok(output
         .cpu_temperature_celsius
-        .filter(|value| value.is_finite() && (0.0..=130.0).contains(value)))
+        .filter(|value| value.is_finite() && value > &0.0 && value <= &130.0))
 }
 
 #[cfg(target_os = "windows")]
@@ -586,7 +586,7 @@ fn cpu_temperature_candidate(sensor: &HardwareMonitorSensor) -> Option<f64> {
     }
 
     let value = sensor.value?;
-    if value.is_finite() && (0.0..=130.0).contains(&value) {
+    if value.is_finite() && value > 0.0 && value <= 130.0 {
         Some(value)
     } else {
         None
@@ -924,6 +924,13 @@ mod tests {
     #[test]
     fn sensor_helper_output_rejects_invalid_temperature() {
         let output = r#"{"cpuTemperatureCelsius":155.0}"#;
+
+        assert_eq!(parse_sensor_helper_output(output).unwrap(), None);
+    }
+
+    #[test]
+    fn sensor_helper_output_rejects_zero_temperature() {
+        let output = r#"{"cpuTemperatureCelsius":0.0}"#;
 
         assert_eq!(parse_sensor_helper_output(output).unwrap(), None);
     }

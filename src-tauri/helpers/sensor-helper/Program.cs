@@ -71,7 +71,7 @@ static bool TryGetCpuTemperature(ISensor sensor, out double value)
     }
 
     value = rawValue;
-    return double.IsFinite(value) && value is >= 0 and <= 130;
+    return double.IsFinite(value) && value is > 0 and <= 130;
 }
 
 static int SensorPriority(ISensor sensor)
