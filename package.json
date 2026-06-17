@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:sensor-helper": "node scripts/build-sensor-helper.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",

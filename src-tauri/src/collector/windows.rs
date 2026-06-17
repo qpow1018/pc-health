@@ -5,10 +5,14 @@ use crate::domain::{
     DeviceKind, DeviceSnapshot, ParsedTelemetry, SensorDiagnostics, SensorReading, SensorSnapshot,
     SensorValue,
 };
+use serde::Deserialize;
 
 #[cfg(target_os = "windows")]
 use std::{
+    env,
     mem::{size_of, zeroed},
+    path::PathBuf,
+    process::Command,
     ptr::{null, null_mut},
     thread,
     time::Duration,
@@ -78,6 +82,12 @@ struct HardwareMonitorSensor {
     identifier: String,
     sensor_type: String,
     value: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SensorHelperOutput {
+    cpu_temperature_celsius: Option<f64>,
 }
 
 impl WindowsCollector {
@@ -330,8 +340,75 @@ fn to_wide(value: &str) -> Vec<u16> {
 
 #[cfg(target_os = "windows")]
 fn read_cpu_temperature_celsius() -> Result<Option<f64>, String> {
+    if let Ok(value) = read_cpu_temperature_from_helper() {
+        return Ok(value);
+    }
+
     let sensors = read_hardware_monitor_sensors()?;
     Ok(select_cpu_temperature_celsius(&sensors))
+}
+
+#[cfg(target_os = "windows")]
+fn read_cpu_temperature_from_helper() -> Result<Option<f64>, String> {
+    let helper_path = find_sensor_helper_executable()
+        .ok_or_else(|| "sensor helper 실행 파일을 찾지 못했습니다.".to_string())?;
+    let output = Command::new(&helper_path)
+        .output()
+        .map_err(|error| format!("sensor helper 실행에 실패했습니다: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("sensor helper가 실패했습니다: {}", output.status)
+        } else {
+            format!("sensor helper가 실패했습니다: {stderr}")
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_sensor_helper_output(&stdout)
+}
+
+#[cfg(target_os = "windows")]
+fn find_sensor_helper_executable() -> Option<PathBuf> {
+    if let Ok(path) = env::var("PC_HEALTH_SENSOR_HELPER") {
+        let path = PathBuf::from(path);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    let mut candidates = Vec::new();
+    if let Ok(current_exe) = env::current_exe() {
+        if let Some(app_dir) = current_exe.parent() {
+            candidates.push(app_dir.join("pc-health-sensor-helper.exe"));
+            candidates.push(app_dir.join("pc-health-sensor-helper-x86_64-pc-windows-msvc.exe"));
+        }
+    }
+    if let Ok(current_dir) = env::current_dir() {
+        candidates.push(
+            current_dir
+                .join("src-tauri")
+                .join("binaries")
+                .join("pc-health-sensor-helper-x86_64-pc-windows-msvc.exe"),
+        );
+        candidates.push(
+            current_dir
+                .join("binaries")
+                .join("pc-health-sensor-helper-x86_64-pc-windows-msvc.exe"),
+        );
+    }
+
+    candidates.into_iter().find(|path| path.is_file())
+}
+
+fn parse_sensor_helper_output(stdout: &str) -> Result<Option<f64>, String> {
+    let output: SensorHelperOutput = serde_json::from_str(stdout.trim())
+        .map_err(|error| format!("sensor helper 응답을 해석하지 못했습니다: {error}"))?;
+
+    Ok(output
+        .cpu_temperature_celsius
+        .filter(|value| value.is_finite() && (0.0..=130.0).contains(value)))
 }
 
 #[cfg(target_os = "windows")]
@@ -832,5 +909,19 @@ mod tests {
         ];
 
         assert_eq!(select_cpu_temperature_celsius(&sensors), Some(66.0));
+    }
+
+    #[test]
+    fn sensor_helper_output_maps_cpu_temperature() {
+        let output = r#"{"cpuTemperatureCelsius":64.5}"#;
+
+        assert_eq!(parse_sensor_helper_output(output).unwrap(), Some(64.5));
+    }
+
+    #[test]
+    fn sensor_helper_output_rejects_invalid_temperature() {
+        let output = r#"{"cpuTemperatureCelsius":155.0}"#;
+
+        assert_eq!(parse_sensor_helper_output(output).unwrap(), None);
     }
 }

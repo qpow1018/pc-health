@@ -1,0 +1,10 @@
+{
+  "build": {
+    "beforeBuildCommand": "npm run build:sensor-helper && npm run build"
+  },
+  "bundle": {
+    "externalBin": [
+      "binaries/pc-health-sensor-helper"
+    ]
+  }
+}
