@@ -1,6 +1,7 @@
 import type {
   DeviceSnapshot,
   IndicationLevel,
+  SensorReading,
   SensorValue,
 } from "@/features/sensors/types";
 import styles from "./DeviceCard.module.css";
@@ -11,14 +12,29 @@ const levelRank: Record<IndicationLevel, number> = {
   warning: 3,
 };
 
-function formatValue(value: SensorValue) {
+function formatAvailableValue(reading: SensorReading, value: SensorValue) {
+  if (value.status !== "available") return "";
+  if (reading.kind === "cpu_usage") return `${value.value.toFixed(1)}${value.unit}`;
+  if (reading.kind === "cpu_clock") return `${value.value.toFixed(2)}${value.unit}`;
+  return `${Number.isInteger(value.value) ? value.value : value.value.toFixed(1)}${value.unit}`;
+}
+
+function formatUnsupportedApp(reading: SensorReading) {
+  if (reading.kind === "cpu_temperature" || reading.kind === "cpu_power") {
+    return "센서 백엔드 필요";
+  }
+  return "현재 버전 미지원";
+}
+
+function formatValue(reading: SensorReading) {
+  const { value } = reading;
   switch (value.status) {
     case "available":
-      return `${Number.isInteger(value.value) ? value.value : value.value.toFixed(1)}${value.unit}`;
+      return formatAvailableValue(reading, value);
     case "unsupported-device":
       return "지원하지 않음";
     case "unsupported-app":
-      return "현재 버전 미지원";
+      return formatUnsupportedApp(reading);
     case "waiting":
       return "데이터 대기 중";
     case "error":
@@ -60,7 +76,7 @@ export default function DeviceCard({ device }: { device: DeviceSnapshot }) {
           >
             <dt>{reading.label}</dt>
             <dd>
-              <span>{formatValue(reading.value)}</span>
+              <span>{formatValue(reading)}</span>
               {reading.indication && <small>{reading.indication.message}</small>}
               {reading.value.status === "error" && (
                 <small>{reading.value.message}</small>

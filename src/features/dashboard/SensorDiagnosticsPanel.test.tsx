@@ -86,4 +86,17 @@ describe("SensorDiagnosticsPanel", () => {
       "진단 정보를 불러오지 못했습니다.",
     );
   });
+
+  it("labels sub-millisecond diagnostics duration clearly", () => {
+    render(
+      <SensorDiagnosticsPanel
+        diagnostics={{ ...diagnostics, durationMs: 0 }}
+        error={null}
+        isLoading={false}
+        onCapture={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("<1ms")).toBeInTheDocument();
+  });
 });

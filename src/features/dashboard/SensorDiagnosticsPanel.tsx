@@ -12,6 +12,10 @@ function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+function formatDuration(durationMs: number) {
+  return durationMs === 0 ? "<1ms" : `${durationMs}ms`;
+}
+
 export default function SensorDiagnosticsPanel({
   diagnostics,
   error,
@@ -54,7 +58,7 @@ export default function SensorDiagnosticsPanel({
           </div>
           <div>
             <span>duration</span>
-            <strong>{diagnostics.durationMs}ms</strong>
+            <strong>{formatDuration(diagnostics.durationMs)}</strong>
           </div>
           <div>
             <span>collected</span>

@@ -64,4 +64,39 @@ describe("DeviceCard", () => {
       "warning",
     );
   });
+
+  it("formats CPU readings for the focused dashboard", () => {
+    const cpuDevice: DeviceSnapshot = {
+      kind: "cpu",
+      name: "AMD Ryzen",
+      readings: [
+        {
+          kind: "cpu_usage",
+          label: "사용률",
+          value: { status: "available", value: 13.20754716981132, unit: "%" },
+        },
+        {
+          kind: "cpu_clock",
+          label: "클럭",
+          value: { status: "available", value: 4.192, unit: "GHz" },
+        },
+        {
+          kind: "cpu_temperature",
+          label: "온도",
+          value: { status: "unsupported-app" },
+        },
+        {
+          kind: "cpu_power",
+          label: "전력",
+          value: { status: "unsupported-app" },
+        },
+      ],
+    };
+
+    render(<DeviceCard device={cpuDevice} />);
+
+    expect(screen.getByText("13.2%")).toBeInTheDocument();
+    expect(screen.getByText("4.19GHz")).toBeInTheDocument();
+    expect(screen.getAllByText("센서 백엔드 필요")).toHaveLength(2);
+  });
 });
