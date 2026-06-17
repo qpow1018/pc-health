@@ -15,6 +15,7 @@
   - `docs/superpowers/specs/`
   - `docs/harness/pc-health/team-spec.md`
   - `.agents/skills/`
+- 새 Windows 하드웨어 provider나 센서 라이브러리를 도입할 때는 먼저 diagnostics/harness로 raw 센서 목록과 값의 신뢰성을 검증하고, 그 증거가 생긴 뒤 dashboard `SensorSnapshot` 값에 연결한다.
 - 현재 파일 배치와 스타일을 우선하고, 단일 사용 abstraction이나 미래 대비 구조를 만들지 않는다.
 - UI를 추가하거나 바꿀 때는 `docs/ui-guidelines.md`를 먼저 확인하고, 기존 dashboard의 조용하고 밀도 있는 데스크톱 유틸리티 톤을 유지한다.
 - 변경 범위에 맞춰 필요한 검증만 실행한다:

@@ -44,11 +44,24 @@
 7. 변경한 표면에 맞춰 집중 검증을 실행한다.
 8. 위험하거나 경계를 넘나드는 작업은 최종 전달 전에 `qa-safety-reviewer`로 검토한다.
 
+## 하드웨어 Provider 통합 순서
+
+LibreHardwareMonitorLib, NVML, WMI provider, vendor SDK처럼 Windows 하드웨어 provider를 새로 도입하거나 교체할 때는 기능 구현이 아니라 provider 검증으로 시작한다.
+
+1. provider를 앱 안에서 실행할 수 있는 최소 경로를 만든다.
+2. 먼저 diagnostics/harness 출력에 raw hardware, sensor name, sensor type, identifier, raw value, update error, helper exit status를 노출한다.
+3. Windows artifact에서 raw 센서 목록과 값이 실제 장비에서 신뢰 가능한지 확인한다.
+4. 후보 sensor 선택 규칙과 invalid value 처리 기준을 정한다. `0`, `NaN`, 무한대, 물리적으로 말이 안 되는 값은 dashboard 값으로 승격하지 않는다.
+5. 위 증거가 생긴 뒤에만 `SensorSnapshot`의 공식 reading에 연결한다.
+
+이 순서를 건너뛰면 dashboard가 provider 통합 실패를 정상 telemetry처럼 보이게 만들 수 있으므로 완료로 보지 않는다.
+
 ## 검증 기준
 
 - 생성된 모든 `SKILL.md`는 `name`과 `description`이 있는 YAML frontmatter를 포함한다.
 - Rust `domain.rs`는 sensor wire contract의 기준으로 유지한다.
 - wire contract가 바뀌면 TypeScript 타입, mock 데이터, UI 렌더링, 테스트를 함께 갱신한다.
+- 새 하드웨어 provider는 raw diagnostics 증거와 Windows artifact 검증 전에는 authoritative dashboard reading으로 취급하지 않는다.
 - 네트워크 진단은 local NIC에서 gateway, DNS, public reachability 순서로 진행한다.
 - 별도 승인된 설치 phase가 없으면 드라이버 inventory는 읽기 전용으로 유지한다.
 - UI 상태는 normal, caution, danger, unknown을 일관되게 구분한다.
