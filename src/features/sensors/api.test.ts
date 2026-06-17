@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getLiveSensorSnapshot, SensorRuntimeUnavailableError } from "./api";
+import {
+  getLiveSensorSnapshot,
+  getSensorDiagnostics,
+  SensorRuntimeUnavailableError,
+} from "./api";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -29,6 +33,28 @@ describe("getSensorSnapshot", () => {
     Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
 
     await expect(getLiveSensorSnapshot()).rejects.toBeInstanceOf(
+      SensorRuntimeUnavailableError,
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("invokes the diagnostics command when Tauri is available", async () => {
+    vi.mocked(invoke).mockResolvedValue({
+      collectedAt: "now",
+      collector: "windows-powershell",
+      durationMs: 10,
+      snapshot: { collectedAt: "now", devices: [] },
+    });
+
+    await getSensorDiagnostics();
+
+    expect(invoke).toHaveBeenCalledWith("get_sensor_diagnostics");
+  });
+
+  it("rejects diagnostics clearly outside Tauri", async () => {
+    Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
+
+    await expect(getSensorDiagnostics()).rejects.toBeInstanceOf(
       SensorRuntimeUnavailableError,
     );
     expect(invoke).not.toHaveBeenCalled();

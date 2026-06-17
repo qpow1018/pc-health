@@ -1,7 +1,9 @@
 import DeviceCard from "./DeviceCard";
+import SensorDiagnosticsPanel from "./SensorDiagnosticsPanel";
 import styles from "./Dashboard.module.css";
 import type {
   MockScenario,
+  SensorDiagnostics,
   SensorMode,
   SensorSnapshot,
 } from "@/features/sensors/types";
@@ -18,7 +20,11 @@ type DashboardProps = {
   mode: SensorMode;
   snapshot: SensorSnapshot | null;
   error: string | null;
+  diagnostics?: SensorDiagnostics | null;
+  diagnosticsError?: string | null;
+  isDiagnosticsLoading?: boolean;
   scenario: MockScenario;
+  onCaptureDiagnostics?: () => void;
   onModeChange: (mode: SensorMode) => void;
   onScenarioChange: (scenario: MockScenario) => void;
 };
@@ -27,7 +33,11 @@ export default function Dashboard({
   mode,
   snapshot,
   error,
+  diagnostics = null,
+  diagnosticsError = null,
+  isDiagnosticsLoading = false,
   scenario,
+  onCaptureDiagnostics = () => {},
   onModeChange,
   onScenarioChange,
 }: DashboardProps) {
@@ -97,6 +107,15 @@ export default function Dashboard({
         표시 기준은 일반적인 권장 범위이며 장치 제조사의 공식 한계값이
         우선합니다.
       </p>
+
+      {mode === "live" && (
+        <SensorDiagnosticsPanel
+          diagnostics={diagnostics}
+          error={diagnosticsError}
+          isLoading={isDiagnosticsLoading}
+          onCapture={onCaptureDiagnostics}
+        />
+      )}
     </main>
   );
 }

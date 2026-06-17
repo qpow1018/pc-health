@@ -58,6 +58,36 @@ pub struct SensorSnapshot {
     pub devices: Vec<DeviceSnapshot>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParsedTelemetry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_usage: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_clock_mhz: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_memory_kb: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub free_memory_kb: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SensorDiagnostics {
+    pub collected_at: String,
+    pub collector: String,
+    pub duration_ms: u128,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_payload: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parsed_telemetry: Option<ParsedTelemetry>,
+    pub snapshot: SensorSnapshot,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,6 +146,46 @@ mod tests {
                         }
                     }]
                 }]
+            })
+        );
+    }
+
+    #[test]
+    fn diagnostics_serializes_with_camel_case_fields() {
+        let diagnostics = SensorDiagnostics {
+            collected_at: "2026-06-17T12:00:00Z".to_string(),
+            collector: "windows-powershell".to_string(),
+            duration_ms: 12,
+            raw_payload: Some(r#"{"CpuUsage":37}"#.to_string()),
+            raw_error: None,
+            parsed_telemetry: Some(ParsedTelemetry {
+                cpu_name: Some("AMD Ryzen".to_string()),
+                cpu_usage: Some(37.0),
+                cpu_clock_mhz: None,
+                total_memory_kb: None,
+                free_memory_kb: None,
+            }),
+            snapshot: SensorSnapshot {
+                collected_at: "2026-06-17T12:00:00Z".to_string(),
+                devices: vec![],
+            },
+        };
+
+        assert_eq!(
+            serde_json::to_value(diagnostics).unwrap(),
+            json!({
+                "collectedAt": "2026-06-17T12:00:00Z",
+                "collector": "windows-powershell",
+                "durationMs": 12,
+                "rawPayload": "{\"CpuUsage\":37}",
+                "parsedTelemetry": {
+                    "cpuName": "AMD Ryzen",
+                    "cpuUsage": 37.0
+                },
+                "snapshot": {
+                    "collectedAt": "2026-06-17T12:00:00Z",
+                    "devices": []
+                }
             })
         );
     }

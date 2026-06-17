@@ -1,8 +1,11 @@
 use crate::{
     collector::{MockScenario, PlatformCollector, SensorCollector},
-    domain::SensorSnapshot,
+    domain::{SensorDiagnostics, SensorSnapshot},
     warning::WarningEvaluator,
 };
+
+#[cfg(not(target_os = "windows"))]
+use crate::collector::unsupported_platform_diagnostics;
 
 pub struct SnapshotService<C = PlatformCollector> {
     collector: C,
@@ -32,6 +35,20 @@ impl<C: SensorCollector> SnapshotService<C> {
         let mut snapshot = self.collector.collect(scenario, collected_at);
         self.warnings.evaluate(&mut snapshot, now_seconds);
         snapshot
+    }
+}
+
+impl SnapshotService<PlatformCollector> {
+    pub fn diagnostics_at(&mut self, collected_at: String) -> SensorDiagnostics {
+        #[cfg(target_os = "windows")]
+        {
+            self.collector.diagnose_live(collected_at)
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            unsupported_platform_diagnostics(collected_at)
+        }
     }
 }
 
@@ -84,5 +101,18 @@ mod tests {
 
         assert_eq!(snapshot.collected_at, "collected");
         assert_eq!(snapshot.devices[0].name, "Injected Memory");
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn service_returns_unsupported_platform_diagnostics_off_windows() {
+        let mut service = SnapshotService::default();
+
+        let diagnostics = service.diagnostics_at("collected".into());
+
+        assert_eq!(diagnostics.collected_at, "collected");
+        assert_eq!(diagnostics.collector, "unsupported-platform");
+        assert!(diagnostics.raw_payload.is_none());
+        assert_eq!(diagnostics.snapshot.devices.len(), 3);
     }
 }

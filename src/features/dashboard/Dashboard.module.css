@@ -90,6 +90,102 @@
   gap: 16px;
 }
 
+.diagnostics {
+  margin-top: 18px;
+  border: 1px solid #304563;
+  border-radius: 8px;
+  padding: 14px;
+  background: #101827;
+}
+
+.diagnostics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  p {
+    margin: 6px 0 0;
+    color: #8fa3bf;
+    font-size: 0.82rem;
+  }
+}
+
+.diagnostics-actions {
+  display: flex;
+  gap: 8px;
+
+  button {
+    border: 1px solid #304563;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #edf5ff;
+    background: #16243a;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    color: #7186a3;
+    cursor: not-allowed;
+  }
+}
+
+.diagnostics-error {
+  margin-top: 12px;
+  border: 1px solid #9d3f48;
+  border-radius: 8px;
+  padding: 10px;
+  color: #ffd7da;
+  background: #35181d;
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+
+  > div {
+    min-width: 0;
+    border: 1px solid #263852;
+    border-radius: 7px;
+    padding: 10px;
+    background: #0d1524;
+  }
+
+  span {
+    display: block;
+    margin-bottom: 6px;
+    color: #79b8ff;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  strong {
+    color: #edf5ff;
+    font-size: 0.9rem;
+  }
+
+  pre {
+    overflow: auto;
+    max-height: 180px;
+    margin: 0;
+    color: #c9d8eb;
+    font-size: 0.74rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+.diagnostics-wide {
+  grid-column: 1 / -1;
+}
+
 .guidance-note {
   margin: 18px 0 0;
   color: #7186a3;
@@ -99,6 +195,10 @@
 
 @media (max-width: 900px) {
   .device-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostics-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -126,6 +226,18 @@
   .scenario-control {
     select {
       width: 100%;
+    }
+  }
+
+  .diagnostics-header {
+    flex-direction: column;
+  }
+
+  .diagnostics-actions {
+    width: 100%;
+
+    button {
+      flex: 1;
     }
   }
 }

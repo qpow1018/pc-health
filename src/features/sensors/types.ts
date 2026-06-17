@@ -36,3 +36,21 @@ export type SensorSnapshot = {
   collectedAt: string;
   devices: DeviceSnapshot[];
 };
+
+export type ParsedTelemetry = {
+  cpuName?: string;
+  cpuUsage?: number;
+  cpuClockMhz?: number;
+  totalMemoryKb?: number;
+  freeMemoryKb?: number;
+};
+
+export type SensorDiagnostics = {
+  collectedAt: string;
+  collector: string;
+  durationMs: number;
+  rawPayload?: string;
+  rawError?: string;
+  parsedTelemetry?: ParsedTelemetry;
+  snapshot: SensorSnapshot;
+};

@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import Dashboard from "./Dashboard";
-import type { SensorSnapshot } from "@/features/sensors/types";
+import type {
+  SensorDiagnostics,
+  SensorSnapshot,
+} from "@/features/sensors/types";
 
 const snapshot: SensorSnapshot = {
   collectedAt: "2026-06-15T12:00:00Z",
@@ -11,6 +14,13 @@ const snapshot: SensorSnapshot = {
     { kind: "gpu", name: "Mock GPU", readings: [] },
     { kind: "memory", name: "Mock Memory", readings: [] },
   ],
+};
+
+const diagnostics: SensorDiagnostics = {
+  collectedAt: "now",
+  collector: "windows-powershell",
+  durationMs: 10,
+  snapshot,
 };
 
 describe("Dashboard", () => {
@@ -76,5 +86,44 @@ describe("Dashboard", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "개발 모드" }));
     expect(onModeChange).toHaveBeenCalledWith("development");
+  });
+
+  it("shows diagnostics controls only in live mode", async () => {
+    const onCaptureDiagnostics = vi.fn();
+    const { rerender } = render(
+      <Dashboard
+        mode="live"
+        snapshot={snapshot}
+        error={null}
+        scenario="normal"
+        diagnostics={diagnostics}
+        diagnosticsError={null}
+        isDiagnosticsLoading={false}
+        onCaptureDiagnostics={onCaptureDiagnostics}
+        onModeChange={() => {}}
+        onScenarioChange={() => {}}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "진단 캡처" }));
+    expect(onCaptureDiagnostics).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("센서 진단")).toBeInTheDocument();
+
+    rerender(
+      <Dashboard
+        mode="development"
+        snapshot={snapshot}
+        error={null}
+        scenario="normal"
+        diagnostics={diagnostics}
+        diagnosticsError={null}
+        isDiagnosticsLoading={false}
+        onCaptureDiagnostics={onCaptureDiagnostics}
+        onModeChange={() => {}}
+        onScenarioChange={() => {}}
+      />,
+    );
+
+    expect(screen.queryByLabelText("센서 진단")).not.toBeInTheDocument();
   });
 });

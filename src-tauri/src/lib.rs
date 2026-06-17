@@ -4,14 +4,17 @@ mod domain;
 mod service;
 mod warning;
 
-use commands::{get_sensor_snapshot, AppState};
+use commands::{get_sensor_diagnostics, get_sensor_snapshot, AppState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![get_sensor_snapshot])
+        .invoke_handler(tauri::generate_handler![
+            get_sensor_snapshot,
+            get_sensor_diagnostics
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

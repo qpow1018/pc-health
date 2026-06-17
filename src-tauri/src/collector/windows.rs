@@ -1,9 +1,12 @@
-use std::process::Command;
+use std::{process::Command, time::Instant};
 
 use serde::Deserialize;
 
 use crate::collector::{MockCollector, MockScenario, SensorCollector};
-use crate::domain::{DeviceKind, DeviceSnapshot, SensorReading, SensorSnapshot, SensorValue};
+use crate::domain::{
+    DeviceKind, DeviceSnapshot, ParsedTelemetry, SensorDiagnostics, SensorReading, SensorSnapshot,
+    SensorValue,
+};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -28,7 +31,7 @@ pub struct WindowsCollector {
     mock: MockCollector,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct WindowsTelemetry {
     cpu_name: Option<String>,
@@ -44,37 +47,99 @@ impl WindowsCollector {
     }
 
     fn collect_live(&mut self, collected_at: String) -> SensorSnapshot {
-        let mut command = Command::new("powershell.exe");
-        command.args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            TELEMETRY_SCRIPT,
-        ]);
+        self.diagnose_live(collected_at).snapshot
+    }
 
-        #[cfg(target_os = "windows")]
-        command.creation_flags(CREATE_NO_WINDOW);
-
-        match command.output() {
-            Ok(output) if output.status.success() => {
-                let payload = String::from_utf8_lossy(&output.stdout);
-                Self::snapshot_from_json(collected_at.clone(), &payload)
-                    .unwrap_or_else(|message| error_snapshot(collected_at, message))
-            }
-            Ok(output) => {
-                let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                error_snapshot(collected_at, non_empty_or_default(message))
-            }
-            Err(error) => error_snapshot(collected_at, error.to_string()),
+    pub fn diagnose_live(&mut self, collected_at: String) -> SensorDiagnostics {
+        let started_at = Instant::now();
+        match run_telemetry_command() {
+            Ok(payload) => match parse_telemetry(&payload) {
+                Ok(telemetry) => {
+                    match snapshot_from_telemetry(collected_at.clone(), telemetry.clone()) {
+                        Ok(snapshot) => SensorDiagnostics {
+                            collected_at,
+                            collector: "windows-powershell".into(),
+                            duration_ms: started_at.elapsed().as_millis(),
+                            raw_payload: Some(payload),
+                            raw_error: None,
+                            parsed_telemetry: Some(telemetry.into()),
+                            snapshot,
+                        },
+                        Err(message) => SensorDiagnostics {
+                            collected_at: collected_at.clone(),
+                            collector: "windows-powershell".into(),
+                            duration_ms: started_at.elapsed().as_millis(),
+                            raw_payload: Some(payload),
+                            raw_error: Some(message.clone()),
+                            parsed_telemetry: Some(telemetry.into()),
+                            snapshot: error_snapshot(collected_at, message),
+                        },
+                    }
+                }
+                Err(message) => SensorDiagnostics {
+                    collected_at: collected_at.clone(),
+                    collector: "windows-powershell".into(),
+                    duration_ms: started_at.elapsed().as_millis(),
+                    raw_payload: Some(payload),
+                    raw_error: Some(message.clone()),
+                    parsed_telemetry: None,
+                    snapshot: error_snapshot(collected_at, message),
+                },
+            },
+            Err(message) => SensorDiagnostics {
+                collected_at: collected_at.clone(),
+                collector: "windows-powershell".into(),
+                duration_ms: started_at.elapsed().as_millis(),
+                raw_payload: None,
+                raw_error: Some(message.clone()),
+                parsed_telemetry: None,
+                snapshot: error_snapshot(collected_at, message),
+            },
         }
     }
 
     fn snapshot_from_json(collected_at: String, payload: &str) -> Result<SensorSnapshot, String> {
-        let telemetry: WindowsTelemetry =
-            serde_json::from_str(payload).map_err(|error| error.to_string())?;
-        snapshot_from_telemetry(collected_at, telemetry)
+        snapshot_from_telemetry(collected_at, parse_telemetry(payload)?)
     }
+}
+
+impl From<WindowsTelemetry> for ParsedTelemetry {
+    fn from(telemetry: WindowsTelemetry) -> Self {
+        Self {
+            cpu_name: telemetry.cpu_name,
+            cpu_usage: telemetry.cpu_usage,
+            cpu_clock_mhz: telemetry.cpu_clock_mhz,
+            total_memory_kb: telemetry.total_memory_kb,
+            free_memory_kb: telemetry.free_memory_kb,
+        }
+    }
+}
+
+fn run_telemetry_command() -> Result<String, String> {
+    let mut command = Command::new("powershell.exe");
+    command.args([
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        TELEMETRY_SCRIPT,
+    ]);
+
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    match command.output() {
+        Ok(output) if output.status.success() => Ok(String::from_utf8_lossy(&output.stdout).into()),
+        Ok(output) => {
+            let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            Err(non_empty_or_default(message))
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn parse_telemetry(payload: &str) -> Result<WindowsTelemetry, String> {
+    serde_json::from_str(payload).map_err(|error| error.to_string())
 }
 
 fn available(kind: &str, label: &str, value: f64, unit: &str) -> SensorReading {
