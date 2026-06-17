@@ -66,6 +66,8 @@ pub struct ParsedTelemetry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cpu_usage: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_temperature_celsius: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cpu_clock_mhz: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_memory_kb: Option<f64>,
@@ -161,6 +163,7 @@ mod tests {
             parsed_telemetry: Some(ParsedTelemetry {
                 cpu_name: Some("AMD Ryzen".to_string()),
                 cpu_usage: Some(37.0),
+                cpu_temperature_celsius: Some(64.5),
                 cpu_clock_mhz: None,
                 total_memory_kb: None,
                 free_memory_kb: None,
@@ -180,7 +183,8 @@ mod tests {
                 "rawPayload": "{\"CpuUsage\":37}",
                 "parsedTelemetry": {
                     "cpuName": "AMD Ryzen",
-                    "cpuUsage": 37.0
+                    "cpuUsage": 37.0,
+                    "cpuTemperatureCelsius": 64.5
                 },
                 "snapshot": {
                     "collectedAt": "2026-06-17T12:00:00Z",

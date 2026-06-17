@@ -40,6 +40,7 @@ export type SensorSnapshot = {
 export type ParsedTelemetry = {
   cpuName?: string;
   cpuUsage?: number;
+  cpuTemperatureCelsius?: number;
   cpuClockMhz?: number;
   totalMemoryKb?: number;
   freeMemoryKb?: number;
