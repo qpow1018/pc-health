@@ -5,6 +5,12 @@ use serde::Deserialize;
 use crate::collector::{MockCollector, MockScenario, SensorCollector};
 use crate::domain::{DeviceKind, DeviceSnapshot, SensorReading, SensorSnapshot, SensorValue};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 const TELEMETRY_SCRIPT: &str = r#"
 $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
 $os = Get-CimInstance Win32_OperatingSystem
@@ -38,16 +44,19 @@ impl WindowsCollector {
     }
 
     fn collect_live(&mut self, collected_at: String) -> SensorSnapshot {
-        match Command::new("powershell.exe")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                TELEMETRY_SCRIPT,
-            ])
-            .output()
-        {
+        let mut command = Command::new("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            TELEMETRY_SCRIPT,
+        ]);
+
+        #[cfg(target_os = "windows")]
+        command.creation_flags(CREATE_NO_WINDOW);
+
+        match command.output() {
             Ok(output) if output.status.success() => {
                 let payload = String::from_utf8_lossy(&output.stdout);
                 Self::snapshot_from_json(collected_at.clone(), &payload)
