@@ -423,6 +423,7 @@ fn read_hardware_monitor_namespace(namespace: &str) -> Result<Vec<HardwareMonito
             let mut objects = [None::<IWbemClassObject>];
             enumerator
                 .Next(WBEM_INFINITE, &mut objects, &mut returned)
+                .ok()
                 .map_err(|error| format!("{namespace} 센서 열거에 실패했습니다: {error}"))?;
 
             if returned == 0 {
