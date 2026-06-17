@@ -6,7 +6,7 @@ import type { SensorDiagnostics } from "./types";
 
 const diagnostics: SensorDiagnostics = {
   collectedAt: "now",
-  collector: "windows-powershell",
+  collector: "windows-native",
   durationMs: 12,
   rawPayload: '{"CpuUsage":37}',
   parsedTelemetry: { cpuUsage: 37 },

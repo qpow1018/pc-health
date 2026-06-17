@@ -41,7 +41,7 @@ describe("getSensorSnapshot", () => {
   it("invokes the diagnostics command when Tauri is available", async () => {
     vi.mocked(invoke).mockResolvedValue({
       collectedAt: "now",
-      collector: "windows-powershell",
+      collector: "windows-native",
       durationMs: 10,
       snapshot: { collectedAt: "now", devices: [] },
     });

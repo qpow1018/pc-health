@@ -1,6 +1,4 @@
-use std::{process::Command, time::Instant};
-
-use serde::Deserialize;
+use std::time::Instant;
 
 use crate::collector::{MockCollector, MockScenario, SensorCollector};
 use crate::domain::{
@@ -9,30 +7,41 @@ use crate::domain::{
 };
 
 #[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use std::{
+    mem::{size_of, zeroed},
+    ptr::null_mut,
+    thread,
+    time::Duration,
+};
 
 #[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-const TELEMETRY_SCRIPT: &str = r#"
-$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
-$os = Get-CimInstance Win32_OperatingSystem
-[pscustomobject]@{
-  CpuName = $cpu.Name
-  CpuUsage = $cpu.LoadPercentage
-  CpuClockMhz = $cpu.MaxClockSpeed
-  TotalMemoryKb = $os.TotalVisibleMemorySize
-  FreeMemoryKb = $os.FreePhysicalMemory
-} | ConvertTo-Json -Compress
-"#;
+use windows_sys::Win32::{
+    Foundation::{ERROR_SUCCESS, FILETIME},
+    System::{
+        Registry::{
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_LOCAL_MACHINE, KEY_READ, REG_DWORD,
+            REG_SZ,
+        },
+        SystemInformation::{GetSystemTimes, GlobalMemoryStatusEx, MEMORYSTATUSEX},
+    },
+};
 
 #[derive(Default)]
 pub struct WindowsCollector {
     mock: MockCollector,
+    #[cfg(target_os = "windows")]
+    previous_cpu_times: Option<CpuTimes>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug)]
+struct CpuTimes {
+    idle: u64,
+    kernel: u64,
+    user: u64,
+}
+
+#[derive(Clone, Debug)]
 struct WindowsTelemetry {
     cpu_name: Option<String>,
     cpu_usage: Option<f64>,
@@ -52,44 +61,14 @@ impl WindowsCollector {
 
     pub fn diagnose_live(&mut self, collected_at: String) -> SensorDiagnostics {
         let started_at = Instant::now();
-        match run_telemetry_command() {
-            Ok(payload) => match parse_telemetry(&payload) {
-                Ok(telemetry) => {
-                    match snapshot_from_telemetry(collected_at.clone(), telemetry.clone()) {
-                        Ok(snapshot) => SensorDiagnostics {
-                            collected_at,
-                            collector: "windows-powershell".into(),
-                            duration_ms: started_at.elapsed().as_millis(),
-                            raw_payload: Some(payload),
-                            raw_error: None,
-                            parsed_telemetry: Some(telemetry.into()),
-                            snapshot,
-                        },
-                        Err(message) => SensorDiagnostics {
-                            collected_at: collected_at.clone(),
-                            collector: "windows-powershell".into(),
-                            duration_ms: started_at.elapsed().as_millis(),
-                            raw_payload: Some(payload),
-                            raw_error: Some(message.clone()),
-                            parsed_telemetry: Some(telemetry.into()),
-                            snapshot: error_snapshot(collected_at, message),
-                        },
-                    }
-                }
-                Err(message) => SensorDiagnostics {
-                    collected_at: collected_at.clone(),
-                    collector: "windows-powershell".into(),
-                    duration_ms: started_at.elapsed().as_millis(),
-                    raw_payload: Some(payload),
-                    raw_error: Some(message.clone()),
-                    parsed_telemetry: None,
-                    snapshot: error_snapshot(collected_at, message),
-                },
-            },
+        let duration = || started_at.elapsed().as_millis();
+
+        match self.collect_native_telemetry() {
+            Ok(telemetry) => diagnostics_from_telemetry(collected_at, duration(), telemetry),
             Err(message) => SensorDiagnostics {
                 collected_at: collected_at.clone(),
-                collector: "windows-powershell".into(),
-                duration_ms: started_at.elapsed().as_millis(),
+                collector: "windows-native".into(),
+                duration_ms: duration(),
                 raw_payload: None,
                 raw_error: Some(message.clone()),
                 parsed_telemetry: None,
@@ -98,8 +77,33 @@ impl WindowsCollector {
         }
     }
 
-    fn snapshot_from_json(collected_at: String, payload: &str) -> Result<SensorSnapshot, String> {
-        snapshot_from_telemetry(collected_at, parse_telemetry(payload)?)
+    #[cfg(target_os = "windows")]
+    fn collect_native_telemetry(&mut self) -> Result<WindowsTelemetry, String> {
+        let first_cpu_times = match self.previous_cpu_times {
+            Some(times) => times,
+            None => {
+                let times = read_cpu_times()?;
+                thread::sleep(Duration::from_millis(100));
+                times
+            }
+        };
+        let current_cpu_times = read_cpu_times()?;
+        self.previous_cpu_times = Some(current_cpu_times);
+
+        let memory = read_memory_status()?;
+
+        Ok(WindowsTelemetry {
+            cpu_name: Some(read_processor_name().unwrap_or_else(|_| "Windows CPU".into())),
+            cpu_usage: calculate_cpu_usage(first_cpu_times, current_cpu_times),
+            cpu_clock_mhz: Some(read_processor_mhz()? as f64),
+            total_memory_kb: Some(memory.total_kb),
+            free_memory_kb: Some(memory.free_kb),
+        })
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn collect_native_telemetry(&mut self) -> Result<WindowsTelemetry, String> {
+        Err("Windows native sensor collection requires Windows.".into())
     }
 }
 
@@ -115,31 +119,181 @@ impl From<WindowsTelemetry> for ParsedTelemetry {
     }
 }
 
-fn run_telemetry_command() -> Result<String, String> {
-    let mut command = Command::new("powershell.exe");
-    command.args([
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        TELEMETRY_SCRIPT,
-    ]);
-
-    #[cfg(target_os = "windows")]
-    command.creation_flags(CREATE_NO_WINDOW);
-
-    match command.output() {
-        Ok(output) if output.status.success() => Ok(String::from_utf8_lossy(&output.stdout).into()),
-        Ok(output) => {
-            let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            Err(non_empty_or_default(message))
-        }
-        Err(error) => Err(error.to_string()),
+fn diagnostics_from_telemetry(
+    collected_at: String,
+    duration_ms: u128,
+    telemetry: WindowsTelemetry,
+) -> SensorDiagnostics {
+    match snapshot_from_telemetry(collected_at.clone(), telemetry.clone()) {
+        Ok(snapshot) => SensorDiagnostics {
+            collected_at,
+            collector: "windows-native".into(),
+            duration_ms,
+            raw_payload: None,
+            raw_error: None,
+            parsed_telemetry: Some(telemetry.into()),
+            snapshot,
+        },
+        Err(message) => SensorDiagnostics {
+            collected_at: collected_at.clone(),
+            collector: "windows-native".into(),
+            duration_ms,
+            raw_payload: None,
+            raw_error: Some(message.clone()),
+            parsed_telemetry: Some(telemetry.into()),
+            snapshot: error_snapshot(collected_at, message),
+        },
     }
 }
 
-fn parse_telemetry(payload: &str) -> Result<WindowsTelemetry, String> {
-    serde_json::from_str(payload).map_err(|error| error.to_string())
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug)]
+struct MemoryStatus {
+    total_kb: f64,
+    free_kb: f64,
+}
+
+#[cfg(target_os = "windows")]
+fn read_cpu_times() -> Result<CpuTimes, String> {
+    unsafe {
+        let mut idle = zeroed::<FILETIME>();
+        let mut kernel = zeroed::<FILETIME>();
+        let mut user = zeroed::<FILETIME>();
+
+        if GetSystemTimes(&mut idle, &mut kernel, &mut user) == 0 {
+            return Err("CPU 사용률 시간을 읽지 못했습니다.".into());
+        }
+
+        Ok(CpuTimes {
+            idle: filetime_to_u64(idle),
+            kernel: filetime_to_u64(kernel),
+            user: filetime_to_u64(user),
+        })
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn calculate_cpu_usage(previous: CpuTimes, current: CpuTimes) -> Option<f64> {
+    let previous_total = previous.kernel.saturating_add(previous.user);
+    let current_total = current.kernel.saturating_add(current.user);
+    let total_delta = current_total.saturating_sub(previous_total);
+    let idle_delta = current.idle.saturating_sub(previous.idle);
+
+    if total_delta == 0 {
+        None
+    } else {
+        Some(((total_delta.saturating_sub(idle_delta)) as f64 / total_delta as f64) * 100.0)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn filetime_to_u64(filetime: FILETIME) -> u64 {
+    ((filetime.dwHighDateTime as u64) << 32) | filetime.dwLowDateTime as u64
+}
+
+#[cfg(target_os = "windows")]
+fn read_memory_status() -> Result<MemoryStatus, String> {
+    unsafe {
+        let mut status = zeroed::<MEMORYSTATUSEX>();
+        status.dwLength = size_of::<MEMORYSTATUSEX>() as u32;
+
+        if GlobalMemoryStatusEx(&mut status) == 0 {
+            return Err("메모리 상태를 읽지 못했습니다.".into());
+        }
+
+        Ok(MemoryStatus {
+            total_kb: status.ullTotalPhys as f64 / 1024.0,
+            free_kb: status.ullAvailPhys as f64 / 1024.0,
+        })
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn read_processor_name() -> Result<String, String> {
+    read_registry_string(
+        "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
+        "ProcessorNameString",
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn read_processor_mhz() -> Result<u32, String> {
+    read_registry_dword("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "~MHz")
+}
+
+#[cfg(target_os = "windows")]
+fn read_registry_string(subkey: &str, value_name: &str) -> Result<String, String> {
+    unsafe {
+        let key = open_registry_key(subkey)?;
+        let value_name = to_wide(value_name);
+        let mut value_type = 0;
+        let mut buffer = [0u16; 256];
+        let mut byte_len = (buffer.len() * size_of::<u16>()) as u32;
+        let result = RegQueryValueExW(
+            key,
+            value_name.as_ptr(),
+            null_mut(),
+            &mut value_type,
+            buffer.as_mut_ptr().cast(),
+            &mut byte_len,
+        );
+        RegCloseKey(key);
+
+        if result != ERROR_SUCCESS || value_type != REG_SZ {
+            return Err("CPU 이름 레지스트리 값을 읽지 못했습니다.".into());
+        }
+
+        let len = buffer
+            .iter()
+            .position(|item| *item == 0)
+            .unwrap_or(buffer.len());
+        Ok(String::from_utf16_lossy(&buffer[..len]).trim().to_string())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn read_registry_dword(subkey: &str, value_name: &str) -> Result<u32, String> {
+    unsafe {
+        let key = open_registry_key(subkey)?;
+        let value_name = to_wide(value_name);
+        let mut value_type = 0;
+        let mut value = 0u32;
+        let mut byte_len = size_of::<u32>() as u32;
+        let result = RegQueryValueExW(
+            key,
+            value_name.as_ptr(),
+            null_mut(),
+            &mut value_type,
+            (&mut value as *mut u32).cast(),
+            &mut byte_len,
+        );
+        RegCloseKey(key);
+
+        if result != ERROR_SUCCESS || value_type != REG_DWORD {
+            return Err("CPU 클럭 레지스트리 값을 읽지 못했습니다.".into());
+        }
+
+        Ok(value)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn open_registry_key(subkey: &str) -> Result<isize, String> {
+    unsafe {
+        let subkey = to_wide(subkey);
+        let mut key = 0;
+        let result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey.as_ptr(), 0, KEY_READ, &mut key);
+        if result != ERROR_SUCCESS {
+            Err("CPU 레지스트리 키를 열지 못했습니다.".into())
+        } else {
+            Ok(key)
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn to_wide(value: &str) -> Vec<u16> {
+    value.encode_utf16().chain(Some(0)).collect()
 }
 
 fn available(kind: &str, label: &str, value: f64, unit: &str) -> SensorReading {
@@ -180,7 +334,8 @@ fn snapshot_from_telemetry(
 ) -> Result<SensorSnapshot, String> {
     let cpu_name = telemetry
         .cpu_name
-        .filter(|name| !name.trim().is_empty())
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
         .ok_or_else(|| "CPU 이름을 읽지 못했습니다.".to_string())?;
     let cpu_usage = telemetry
         .cpu_usage
@@ -302,16 +457,16 @@ mod tests {
     }
 
     #[test]
-    fn windows_telemetry_json_maps_to_cpu_memory_snapshot() {
-        let snapshot = WindowsCollector::snapshot_from_json(
+    fn windows_telemetry_maps_to_cpu_memory_snapshot() {
+        let snapshot = snapshot_from_telemetry(
             "2026-06-17T12:00:00Z".into(),
-            r#"{
-                "CpuName": "AMD Ryzen 7",
-                "CpuUsage": 37,
-                "CpuClockMhz": 4200,
-                "TotalMemoryKb": 33554432,
-                "FreeMemoryKb": 16777216
-            }"#,
+            WindowsTelemetry {
+                cpu_name: Some("AMD Ryzen 7   ".into()),
+                cpu_usage: Some(37.0),
+                cpu_clock_mhz: Some(4200.0),
+                total_memory_kb: Some(33554432.0),
+                free_memory_kb: Some(16777216.0),
+            },
         )
         .unwrap();
 
@@ -338,6 +493,30 @@ mod tests {
         assert_eq!(
             available_value(&snapshot.devices[2].readings[1].value),
             16.0
+        );
+    }
+
+    #[test]
+    fn native_diagnostics_have_no_raw_payload() {
+        let diagnostics = diagnostics_from_telemetry(
+            "2026-06-17T12:00:00Z".into(),
+            8,
+            WindowsTelemetry {
+                cpu_name: Some("AMD Ryzen 7".into()),
+                cpu_usage: Some(37.0),
+                cpu_clock_mhz: Some(4200.0),
+                total_memory_kb: Some(33554432.0),
+                free_memory_kb: Some(16777216.0),
+            },
+        );
+
+        assert_eq!(diagnostics.collector, "windows-native");
+        assert_eq!(diagnostics.duration_ms, 8);
+        assert!(diagnostics.raw_payload.is_none());
+        assert!(diagnostics.raw_error.is_none());
+        assert_eq!(
+            diagnostics.parsed_telemetry.as_ref().unwrap().cpu_usage,
+            Some(37.0)
         );
     }
 }

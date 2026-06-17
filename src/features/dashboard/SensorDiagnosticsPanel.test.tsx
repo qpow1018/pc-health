@@ -6,7 +6,7 @@ import type { SensorDiagnostics } from "@/features/sensors/types";
 
 const diagnostics: SensorDiagnostics = {
   collectedAt: "2026-06-17T12:00:00Z",
-  collector: "windows-powershell",
+  collector: "windows-native",
   durationMs: 42,
   rawPayload: '{"CpuUsage":37}',
   rawError: "parse failed",
@@ -64,7 +64,7 @@ describe("SensorDiagnosticsPanel", () => {
       />,
     );
 
-    expect(screen.getByText("windows-powershell")).toBeInTheDocument();
+    expect(screen.getByText("windows-native")).toBeInTheDocument();
     expect(screen.getByText("42ms")).toBeInTheDocument();
     expect(screen.getByText(/CpuUsage/)).toBeInTheDocument();
     expect(screen.getAllByText(/AMD Ryzen/).length).toBeGreaterThan(1);

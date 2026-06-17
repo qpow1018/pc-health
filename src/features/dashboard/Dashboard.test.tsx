@@ -18,7 +18,7 @@ const snapshot: SensorSnapshot = {
 
 const diagnostics: SensorDiagnostics = {
   collectedAt: "now",
-  collector: "windows-powershell",
+  collector: "windows-native",
   durationMs: 10,
   snapshot,
 };

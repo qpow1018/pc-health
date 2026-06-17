@@ -154,7 +154,7 @@ mod tests {
     fn diagnostics_serializes_with_camel_case_fields() {
         let diagnostics = SensorDiagnostics {
             collected_at: "2026-06-17T12:00:00Z".to_string(),
-            collector: "windows-powershell".to_string(),
+            collector: "windows-native".to_string(),
             duration_ms: 12,
             raw_payload: Some(r#"{"CpuUsage":37}"#.to_string()),
             raw_error: None,
@@ -175,7 +175,7 @@ mod tests {
             serde_json::to_value(diagnostics).unwrap(),
             json!({
                 "collectedAt": "2026-06-17T12:00:00Z",
-                "collector": "windows-powershell",
+                "collector": "windows-native",
                 "durationMs": 12,
                 "rawPayload": "{\"CpuUsage\":37}",
                 "parsedTelemetry": {
