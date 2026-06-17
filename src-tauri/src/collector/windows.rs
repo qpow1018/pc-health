@@ -11,6 +11,7 @@ use serde::Deserialize;
 use std::{
     env,
     mem::{size_of, zeroed},
+    os::windows::process::CommandExt,
     path::PathBuf,
     process::Command,
     ptr::{null, null_mut},
@@ -27,7 +28,7 @@ use windows_sys::Win32::{
             REG_DWORD, REG_SZ,
         },
         SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX},
-        Threading::GetSystemTimes,
+        Threading::{GetSystemTimes, CREATE_NO_WINDOW},
     },
 };
 
@@ -352,7 +353,9 @@ fn read_cpu_temperature_celsius() -> Result<Option<f64>, String> {
 fn read_cpu_temperature_from_helper() -> Result<Option<f64>, String> {
     let helper_path = find_sensor_helper_executable()
         .ok_or_else(|| "sensor helper 실행 파일을 찾지 못했습니다.".to_string())?;
-    let output = Command::new(&helper_path)
+    let mut command = Command::new(&helper_path);
+    let output = command
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|error| format!("sensor helper 실행에 실패했습니다: {error}"))?;
 
