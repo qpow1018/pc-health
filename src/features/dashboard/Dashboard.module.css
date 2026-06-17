@@ -84,10 +84,10 @@
   background: #35181d;
 }
 
-.device-grid {
+.cpu-panel {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: minmax(320px, 520px);
+  gap: 14px;
 }
 
 .diagnostics {
@@ -194,7 +194,7 @@
 }
 
 @media (max-width: 900px) {
-  .device-grid {
+  .cpu-panel {
     grid-template-columns: 1fr;
   }
 

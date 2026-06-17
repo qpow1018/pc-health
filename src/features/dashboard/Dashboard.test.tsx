@@ -24,7 +24,7 @@ const diagnostics: SensorDiagnostics = {
 };
 
 describe("Dashboard", () => {
-  it("renders all device cards and changes scenarios", async () => {
+  it("renders the CPU card and changes scenarios", async () => {
     const onScenarioChange = vi.fn();
     render(
       <Dashboard
@@ -38,8 +38,8 @@ describe("Dashboard", () => {
     );
 
     expect(screen.getByTestId("cpu-card")).toBeInTheDocument();
-    expect(screen.getByTestId("gpu-card")).toBeInTheDocument();
-    expect(screen.getByTestId("memory-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("gpu-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("memory-card")).not.toBeInTheDocument();
 
     expect(
       screen.getByRole("button", { name: "실제 모드" }),

@@ -41,6 +41,8 @@ export default function Dashboard({
   onModeChange,
   onScenarioChange,
 }: DashboardProps) {
+  const cpuDevice = snapshot?.devices.find((device) => device.kind === "cpu");
+
   return (
     <main className={styles["shell"]}>
       <header className={styles["header"]}>
@@ -97,10 +99,8 @@ export default function Dashboard({
         </div>
       )}
 
-      <div className={styles["device-grid"]}>
-        {snapshot?.devices.map((device) => (
-          <DeviceCard device={device} key={device.kind} />
-        ))}
+      <div className={styles["cpu-panel"]}>
+        {cpuDevice && <DeviceCard device={cpuDevice} />}
       </div>
 
       <p className={styles["guidance-note"]}>
