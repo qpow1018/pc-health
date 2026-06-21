@@ -1,4 +1,5 @@
 mod mock;
+mod sensor_helper;
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 mod windows;
 

@@ -1,19 +1,16 @@
 use std::time::Instant;
 
+#[cfg(target_os = "windows")]
+use crate::collector::sensor_helper::{select_cpu_temperature, SensorHelperClient};
 use crate::collector::{MockCollector, MockScenario, SensorCollector};
 use crate::domain::{
     DeviceKind, DeviceSnapshot, ParsedTelemetry, SensorDiagnostics, SensorReading, SensorSnapshot,
     SensorValue,
 };
-use serde::Deserialize;
 
 #[cfg(target_os = "windows")]
 use std::{
-    env,
     mem::{size_of, zeroed},
-    os::windows::process::CommandExt,
-    path::PathBuf,
-    process::Command,
     ptr::{null, null_mut},
     thread,
     time::Duration,
@@ -28,35 +25,28 @@ use windows_sys::Win32::{
             REG_DWORD, REG_SZ,
         },
         SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX},
-        Threading::{GetSystemTimes, CREATE_NO_WINDOW},
+        Threading::GetSystemTimes,
     },
 };
 
-#[cfg(target_os = "windows")]
-use windows::{
-    core::{w, BSTR, PCWSTR},
-    Win32::{
-        Foundation::RPC_E_TOO_LATE,
-        System::{
-            Com::{
-                CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoUninitialize,
-                CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT,
-                RPC_C_IMP_LEVEL_IMPERSONATE,
-            },
-            Variant::{VariantClear, VARIANT, VT_BSTR, VT_R4, VT_R8},
-            Wmi::{
-                IWbemClassObject, IWbemContext, IWbemLocator, WbemLocator, WBEM_FLAG_FORWARD_ONLY,
-                WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE,
-            },
-        },
-    },
-};
-
-#[derive(Default)]
 pub struct WindowsCollector {
     mock: MockCollector,
     #[cfg(target_os = "windows")]
     previous_cpu_times: Option<CpuTimes>,
+    #[cfg(target_os = "windows")]
+    sensor_helper: SensorHelperClient,
+}
+
+impl Default for WindowsCollector {
+    fn default() -> Self {
+        Self {
+            mock: MockCollector::new(),
+            #[cfg(target_os = "windows")]
+            previous_cpu_times: None,
+            #[cfg(target_os = "windows")]
+            sensor_helper: SensorHelperClient::default(),
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -77,18 +67,11 @@ struct WindowsTelemetry {
     free_memory_kb: Option<f64>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-struct HardwareMonitorSensor {
-    name: String,
-    identifier: String,
-    sensor_type: String,
-    value: Option<f64>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SensorHelperOutput {
-    cpu_temperature_celsius: Option<f64>,
+#[derive(Clone, Debug)]
+struct NativeCollection {
+    telemetry: WindowsTelemetry,
+    helper_raw_payload: Option<String>,
+    helper_error: Option<String>,
 }
 
 impl WindowsCollector {
@@ -105,7 +88,13 @@ impl WindowsCollector {
         let duration = || started_at.elapsed().as_millis();
 
         match self.collect_native_telemetry() {
-            Ok(telemetry) => diagnostics_from_telemetry(collected_at, duration(), telemetry),
+            Ok(collection) => diagnostics_from_telemetry(
+                collected_at,
+                duration(),
+                collection.telemetry,
+                collection.helper_raw_payload,
+                collection.helper_error,
+            ),
             Err(message) => SensorDiagnostics {
                 collected_at: collected_at.clone(),
                 collector: "windows-native".into(),
@@ -119,7 +108,7 @@ impl WindowsCollector {
     }
 
     #[cfg(target_os = "windows")]
-    fn collect_native_telemetry(&mut self) -> Result<WindowsTelemetry, String> {
+    fn collect_native_telemetry(&mut self) -> Result<NativeCollection, String> {
         let first_cpu_times = match self.previous_cpu_times {
             Some(times) => times,
             None => {
@@ -133,18 +122,32 @@ impl WindowsCollector {
 
         let memory = read_memory_status()?;
 
-        Ok(WindowsTelemetry {
-            cpu_name: Some(read_processor_name().unwrap_or_else(|_| "Windows CPU".into())),
-            cpu_usage: calculate_cpu_usage(first_cpu_times, current_cpu_times),
-            cpu_temperature_celsius: read_cpu_temperature_celsius().unwrap_or(None),
-            cpu_clock_mhz: Some(read_processor_mhz()? as f64),
-            total_memory_kb: Some(memory.total_kb),
-            free_memory_kb: Some(memory.free_kb),
+        let (cpu_temperature_celsius, helper_raw_payload, helper_error) =
+            match self.sensor_helper.sample() {
+                Ok(sample) => (
+                    select_cpu_temperature(&sample.response),
+                    Some(sample.raw_line),
+                    None,
+                ),
+                Err(message) => (None, None, Some(message)),
+            };
+
+        Ok(NativeCollection {
+            telemetry: WindowsTelemetry {
+                cpu_name: Some(read_processor_name().unwrap_or_else(|_| "Windows CPU".into())),
+                cpu_usage: calculate_cpu_usage(first_cpu_times, current_cpu_times),
+                cpu_temperature_celsius,
+                cpu_clock_mhz: Some(read_processor_mhz()? as f64),
+                total_memory_kb: Some(memory.total_kb),
+                free_memory_kb: Some(memory.free_kb),
+            },
+            helper_raw_payload,
+            helper_error,
         })
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn collect_native_telemetry(&mut self) -> Result<WindowsTelemetry, String> {
+    fn collect_native_telemetry(&mut self) -> Result<NativeCollection, String> {
         Err("Windows native sensor collection requires Windows.".into())
     }
 }
@@ -166,23 +169,28 @@ fn diagnostics_from_telemetry(
     collected_at: String,
     duration_ms: u128,
     telemetry: WindowsTelemetry,
+    helper_raw_payload: Option<String>,
+    helper_error: Option<String>,
 ) -> SensorDiagnostics {
     match snapshot_from_telemetry(collected_at.clone(), telemetry.clone()) {
         Ok(snapshot) => SensorDiagnostics {
             collected_at,
-            collector: "windows-native".into(),
+            collector: "windows-native+librehardwaremonitor".into(),
             duration_ms,
-            raw_payload: None,
-            raw_error: None,
+            raw_payload: helper_raw_payload,
+            raw_error: helper_error,
             parsed_telemetry: Some(telemetry.into()),
             snapshot,
         },
         Err(message) => SensorDiagnostics {
             collected_at: collected_at.clone(),
-            collector: "windows-native".into(),
+            collector: "windows-native+librehardwaremonitor".into(),
             duration_ms,
-            raw_payload: None,
-            raw_error: Some(message.clone()),
+            raw_payload: helper_raw_payload,
+            raw_error: Some(match helper_error {
+                Some(helper_error) => format!("{helper_error}; {message}"),
+                None => message.clone(),
+            }),
             parsed_telemetry: Some(telemetry.into()),
             snapshot: error_snapshot(collected_at, message),
         },
@@ -337,296 +345,6 @@ fn open_registry_key(subkey: &str) -> Result<HKEY, String> {
 #[cfg(target_os = "windows")]
 fn to_wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
-}
-
-#[cfg(target_os = "windows")]
-fn read_cpu_temperature_celsius() -> Result<Option<f64>, String> {
-    if let Ok(value) = read_cpu_temperature_from_helper() {
-        return Ok(value);
-    }
-
-    let sensors = read_hardware_monitor_sensors()?;
-    Ok(select_cpu_temperature_celsius(&sensors))
-}
-
-#[cfg(target_os = "windows")]
-fn read_cpu_temperature_from_helper() -> Result<Option<f64>, String> {
-    let helper_path = find_sensor_helper_executable()
-        .ok_or_else(|| "sensor helper 실행 파일을 찾지 못했습니다.".to_string())?;
-    let mut command = Command::new(&helper_path);
-    let output = command
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map_err(|error| format!("sensor helper 실행에 실패했습니다: {error}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            format!("sensor helper가 실패했습니다: {}", output.status)
-        } else {
-            format!("sensor helper가 실패했습니다: {stderr}")
-        });
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_sensor_helper_output(&stdout)
-}
-
-#[cfg(target_os = "windows")]
-fn find_sensor_helper_executable() -> Option<PathBuf> {
-    if let Ok(path) = env::var("PC_HEALTH_SENSOR_HELPER") {
-        let path = PathBuf::from(path);
-        if path.is_file() {
-            return Some(path);
-        }
-    }
-
-    let mut candidates = Vec::new();
-    if let Ok(current_exe) = env::current_exe() {
-        if let Some(app_dir) = current_exe.parent() {
-            candidates.push(app_dir.join("pc-health-sensor-helper.exe"));
-            candidates.push(app_dir.join("pc-health-sensor-helper-x86_64-pc-windows-msvc.exe"));
-        }
-    }
-    if let Ok(current_dir) = env::current_dir() {
-        candidates.push(
-            current_dir
-                .join("src-tauri")
-                .join("binaries")
-                .join("pc-health-sensor-helper-x86_64-pc-windows-msvc.exe"),
-        );
-        candidates.push(
-            current_dir
-                .join("binaries")
-                .join("pc-health-sensor-helper-x86_64-pc-windows-msvc.exe"),
-        );
-    }
-
-    candidates.into_iter().find(|path| path.is_file())
-}
-
-fn parse_sensor_helper_output(stdout: &str) -> Result<Option<f64>, String> {
-    let output: SensorHelperOutput = serde_json::from_str(stdout.trim())
-        .map_err(|error| format!("sensor helper 응답을 해석하지 못했습니다: {error}"))?;
-
-    Ok(output
-        .cpu_temperature_celsius
-        .filter(|value| value.is_finite() && value > &0.0 && value <= &130.0))
-}
-
-#[cfg(target_os = "windows")]
-fn read_hardware_monitor_sensors() -> Result<Vec<HardwareMonitorSensor>, String> {
-    let _com = ComApartment::new()?;
-    let mut sensors = Vec::new();
-
-    for namespace in ["ROOT\\LibreHardwareMonitor", "ROOT\\OpenHardwareMonitor"] {
-        if let Ok(mut namespace_sensors) = read_hardware_monitor_namespace(namespace) {
-            sensors.append(&mut namespace_sensors);
-        }
-    }
-
-    Ok(sensors)
-}
-
-#[cfg(target_os = "windows")]
-struct ComApartment;
-
-#[cfg(target_os = "windows")]
-impl ComApartment {
-    fn new() -> Result<Self, String> {
-        unsafe {
-            let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
-            if hr.is_err() {
-                return Err(format!("COM 초기화에 실패했습니다: {hr:?}"));
-            }
-
-            match CoInitializeSecurity(
-                None,
-                -1,
-                None,
-                None,
-                RPC_C_AUTHN_LEVEL_DEFAULT,
-                RPC_C_IMP_LEVEL_IMPERSONATE,
-                None,
-                EOAC_NONE,
-                None,
-            ) {
-                Ok(()) => {}
-                Err(error) if error.code() == RPC_E_TOO_LATE => {}
-                Err(error) => return Err(format!("COM 보안 초기화에 실패했습니다: {error}")),
-            }
-        }
-
-        Ok(Self)
-    }
-}
-
-#[cfg(target_os = "windows")]
-impl Drop for ComApartment {
-    fn drop(&mut self) {
-        unsafe {
-            CoUninitialize();
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn read_hardware_monitor_namespace(namespace: &str) -> Result<Vec<HardwareMonitorSensor>, String> {
-    unsafe {
-        let locator: IWbemLocator = CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER)
-            .map_err(|error| format!("WMI locator를 만들지 못했습니다: {error}"))?;
-        let services = locator
-            .ConnectServer(
-                &BSTR::from(namespace),
-                &BSTR::new(),
-                &BSTR::new(),
-                &BSTR::new(),
-                0,
-                &BSTR::new(),
-                None::<&IWbemContext>,
-            )
-            .map_err(|error| format!("{namespace} namespace에 연결하지 못했습니다: {error}"))?;
-
-        let flags = WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY;
-        let enumerator = services
-            .ExecQuery(
-                &BSTR::from("WQL"),
-                &BSTR::from("SELECT Name, Identifier, SensorType, Value FROM Sensor"),
-                flags,
-                None::<&IWbemContext>,
-            )
-            .map_err(|error| format!("{namespace} 센서 쿼리에 실패했습니다: {error}"))?;
-
-        let mut sensors = Vec::new();
-        loop {
-            let mut returned = 0;
-            let mut objects = [None::<IWbemClassObject>];
-            enumerator
-                .Next(WBEM_INFINITE, &mut objects, &mut returned)
-                .ok()
-                .map_err(|error| format!("{namespace} 센서 열거에 실패했습니다: {error}"))?;
-
-            if returned == 0 {
-                break;
-            }
-
-            if let Some(object) = objects[0].take() {
-                if let Some(sensor) = sensor_from_wmi_object(&object) {
-                    sensors.push(sensor);
-                }
-            }
-        }
-
-        Ok(sensors)
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn sensor_from_wmi_object(object: &IWbemClassObject) -> Option<HardwareMonitorSensor> {
-    Some(HardwareMonitorSensor {
-        name: get_wmi_string(object, w!("Name"))?,
-        identifier: get_wmi_string(object, w!("Identifier"))?,
-        sensor_type: get_wmi_string(object, w!("SensorType"))?,
-        value: get_wmi_f64(object, w!("Value")),
-    })
-}
-
-#[cfg(target_os = "windows")]
-fn get_wmi_string(object: &IWbemClassObject, name: PCWSTR) -> Option<String> {
-    let mut variant = VARIANT::default();
-    let value = unsafe {
-        object.Get(name, 0, &mut variant, None, None).ok()?;
-        let value = variant_string(&variant);
-        let _ = VariantClear(&mut variant);
-        value
-    };
-
-    value
-}
-
-#[cfg(target_os = "windows")]
-fn get_wmi_f64(object: &IWbemClassObject, name: PCWSTR) -> Option<f64> {
-    let mut variant = VARIANT::default();
-    let value = unsafe {
-        object.Get(name, 0, &mut variant, None, None).ok()?;
-        let value = variant_f64(&variant);
-        let _ = VariantClear(&mut variant);
-        value
-    };
-
-    value
-}
-
-fn select_cpu_temperature_celsius(sensors: &[HardwareMonitorSensor]) -> Option<f64> {
-    let mut candidates = sensors
-        .iter()
-        .filter_map(|sensor| cpu_temperature_candidate(sensor).map(|value| (sensor, value)))
-        .collect::<Vec<_>>();
-
-    candidates.sort_by(|(left_sensor, left_value), (right_sensor, right_value)| {
-        sensor_temperature_priority(right_sensor)
-            .cmp(&sensor_temperature_priority(left_sensor))
-            .then_with(|| right_value.total_cmp(left_value))
-    });
-
-    candidates.first().map(|(_, value)| *value)
-}
-
-fn cpu_temperature_candidate(sensor: &HardwareMonitorSensor) -> Option<f64> {
-    if !sensor.sensor_type.eq_ignore_ascii_case("Temperature") {
-        return None;
-    }
-
-    let identifier = sensor.identifier.to_ascii_lowercase();
-    if !(identifier.contains("/amdcpu/")
-        || identifier.contains("/intelcpu/")
-        || identifier.contains("/cpu/"))
-    {
-        return None;
-    }
-
-    let value = sensor.value?;
-    if value.is_finite() && value > 0.0 && value <= 130.0 {
-        Some(value)
-    } else {
-        None
-    }
-}
-
-fn sensor_temperature_priority(sensor: &HardwareMonitorSensor) -> u8 {
-    let name = sensor.name.to_ascii_lowercase();
-
-    if name.contains("package") || name.contains("tctl") || name.contains("tdie") {
-        2
-    } else {
-        1
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn variant_string(variant: &VARIANT) -> Option<String> {
-    unsafe {
-        let inner = &variant.Anonymous.Anonymous;
-        if inner.vt != VT_BSTR {
-            return None;
-        }
-
-        Some(inner.Anonymous.bstrVal.to_string())
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn variant_f64(variant: &VARIANT) -> Option<f64> {
-    unsafe {
-        let inner = &variant.Anonymous.Anonymous;
-        if inner.vt == VT_R8 {
-            Some(inner.Anonymous.dblVal)
-        } else if inner.vt == VT_R4 {
-            Some(inner.Anonymous.fltVal as f64)
-        } else {
-            None
-        }
-    }
 }
 
 fn available(kind: &str, label: &str, value: f64, unit: &str) -> SensorReading {
@@ -843,7 +561,8 @@ mod tests {
     }
 
     #[test]
-    fn native_diagnostics_have_no_raw_payload() {
+    fn diagnostics_include_raw_lhm_payload() {
+        let raw_payload = r#"{"id":1,"ok":true}"#.to_string();
         let diagnostics = diagnostics_from_telemetry(
             "2026-06-17T12:00:00Z".into(),
             8,
@@ -855,15 +574,45 @@ mod tests {
                 total_memory_kb: Some(33554432.0),
                 free_memory_kb: Some(16777216.0),
             },
+            Some(raw_payload.clone()),
+            None,
         );
 
-        assert_eq!(diagnostics.collector, "windows-native");
+        assert_eq!(diagnostics.collector, "windows-native+librehardwaremonitor");
         assert_eq!(diagnostics.duration_ms, 8);
-        assert!(diagnostics.raw_payload.is_none());
+        assert_eq!(diagnostics.raw_payload, Some(raw_payload));
         assert!(diagnostics.raw_error.is_none());
         assert_eq!(
             diagnostics.parsed_telemetry.as_ref().unwrap().cpu_usage,
             Some(37.0)
+        );
+    }
+
+    #[test]
+    fn helper_failure_preserves_native_telemetry() {
+        let diagnostics = diagnostics_from_telemetry(
+            "2026-06-17T12:00:00Z".into(),
+            8,
+            WindowsTelemetry {
+                cpu_name: Some("AMD Ryzen 7".into()),
+                cpu_usage: Some(37.0),
+                cpu_temperature_celsius: None,
+                cpu_clock_mhz: Some(4200.0),
+                total_memory_kb: Some(33554432.0),
+                free_memory_kb: Some(16777216.0),
+            },
+            None,
+            Some("helper timeout".into()),
+        );
+
+        assert_eq!(diagnostics.raw_error.as_deref(), Some("helper timeout"));
+        assert_eq!(
+            available_value(&diagnostics.snapshot.devices[0].readings[0].value),
+            37.0
+        );
+        assert_eq!(
+            diagnostics.snapshot.devices[0].readings[1].value,
+            SensorValue::UnsupportedApp
         );
     }
 
@@ -886,52 +635,5 @@ mod tests {
             snapshot.devices[0].readings[1].value,
             SensorValue::UnsupportedApp
         );
-    }
-
-    #[test]
-    fn cpu_temperature_prefers_package_sensor() {
-        let sensors = vec![
-            HardwareMonitorSensor {
-                name: "Core #1".into(),
-                identifier: "/amdcpu/0/temperature/1".into(),
-                sensor_type: "Temperature".into(),
-                value: Some(62.0),
-            },
-            HardwareMonitorSensor {
-                name: "CPU Package".into(),
-                identifier: "/amdcpu/0/temperature/2".into(),
-                sensor_type: "Temperature".into(),
-                value: Some(66.0),
-            },
-            HardwareMonitorSensor {
-                name: "GPU Core".into(),
-                identifier: "/gpu-nvidia/0/temperature/0".into(),
-                sensor_type: "Temperature".into(),
-                value: Some(54.0),
-            },
-        ];
-
-        assert_eq!(select_cpu_temperature_celsius(&sensors), Some(66.0));
-    }
-
-    #[test]
-    fn sensor_helper_output_maps_cpu_temperature() {
-        let output = r#"{"cpuTemperatureCelsius":64.5}"#;
-
-        assert_eq!(parse_sensor_helper_output(output).unwrap(), Some(64.5));
-    }
-
-    #[test]
-    fn sensor_helper_output_rejects_invalid_temperature() {
-        let output = r#"{"cpuTemperatureCelsius":155.0}"#;
-
-        assert_eq!(parse_sensor_helper_output(output).unwrap(), None);
-    }
-
-    #[test]
-    fn sensor_helper_output_rejects_zero_temperature() {
-        let output = r#"{"cpuTemperatureCelsius":0.0}"#;
-
-        assert_eq!(parse_sensor_helper_output(output).unwrap(), None);
     }
 }
