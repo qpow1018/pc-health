@@ -35,14 +35,14 @@ jobs:
       - name: Run frontend tests
         run: npm test
 
-      - name: Run Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
-
       - name: Run sensor helper tests
         run: dotnet test src-tauri/helpers/sensor-helper-tests/PcHealth.SensorHelper.Tests.csproj
 
       - name: Build sensor helper
         run: npm run build:sensor-helper
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Smoke test persistent sensor helper
         shell: pwsh
