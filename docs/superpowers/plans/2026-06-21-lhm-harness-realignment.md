@@ -354,10 +354,10 @@ Expected: every command exits with status 0.
 - [ ] **Step 5: Confirm source code was untouched**
 
 ```bash
-git diff --name-only HEAD~5..HEAD
+git diff --name-only HEAD~5..HEAD | rg '^(src/|src-tauri/src/|src-tauri/helpers/)'
 ```
 
-Expected: implementation commits contain only `AGENTS.md`, `docs/harness/pc-health/team-spec.md`, and `.agents/skills/*/SKILL.md`.
+Expected: no matches; the implementation commits contain no application or helper source changes.
 
 - [ ] **Step 6: Record final status**
 
@@ -366,4 +366,4 @@ git status --short
 git log -6 --oneline
 ```
 
-Expected: the worktree is clean and the five implementation commits are visible after the design commit.
+Expected: the worktree is clean and the documentation implementation commits are visible after the design commit.
