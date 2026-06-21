@@ -24,8 +24,29 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Run sensor helper tests
+        run: dotnet test src-tauri/helpers/sensor-helper-tests/PcHealth.SensorHelper.Tests.csproj
+
+      - name: Build sensor helper
+        run: npm run build:sensor-helper
+
+      - name: Smoke test persistent sensor helper
+        shell: pwsh
+        run: ./scripts/test-sensor-helper.ps1
 
       - name: Build and upload Windows artifact
         uses: tauri-apps/tauri-action@v0.6.2

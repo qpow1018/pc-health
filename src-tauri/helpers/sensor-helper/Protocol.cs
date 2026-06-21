@@ -44,14 +44,26 @@ public static class SensorUnits
     public static string? For(SensorType sensorType) => sensorType switch
     {
         SensorType.Temperature => "C",
+        SensorType.Current => "A",
         SensorType.Load => "%",
         SensorType.Control => "%",
+        SensorType.Level => "%",
+        SensorType.Humidity => "%",
         SensorType.Clock => "MHz",
+        SensorType.Frequency => "Hz",
         SensorType.Power => "W",
         SensorType.Fan => "RPM",
+        SensorType.Flow => "L/h",
         SensorType.Voltage => "V",
+        SensorType.Factor => "1",
         SensorType.Data => "GB",
+        SensorType.SmallData => "MB",
         SensorType.Throughput => "B/s",
+        SensorType.TimeSpan => "s",
+        SensorType.Timing => "ns",
+        SensorType.Energy => "mWh",
+        SensorType.Noise => "dBA",
+        SensorType.Conductivity => "uS/cm",
         _ => null,
     };
 }

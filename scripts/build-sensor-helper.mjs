@@ -1,4 +1,4 @@
-import { mkdir, rename } from "node:fs/promises";
+import { mkdir, rename, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
 const outputDir = "src-tauri/binaries";
@@ -35,4 +35,5 @@ if (publish.status !== 0) {
   process.exit(publish.status ?? 1);
 }
 
+await rm(target, { force: true });
 await rename(source, target);

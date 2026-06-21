@@ -75,11 +75,23 @@ public sealed class HelperHostTests
 
     [Theory]
     [InlineData(SensorType.Temperature, "C")]
+    [InlineData(SensorType.Current, "A")]
     [InlineData(SensorType.Load, "%")]
     [InlineData(SensorType.Clock, "MHz")]
+    [InlineData(SensorType.Frequency, "Hz")]
     [InlineData(SensorType.Power, "W")]
     [InlineData(SensorType.Fan, "RPM")]
+    [InlineData(SensorType.Flow, "L/h")]
     [InlineData(SensorType.Voltage, "V")]
+    [InlineData(SensorType.Level, "%")]
+    [InlineData(SensorType.Factor, "1")]
+    [InlineData(SensorType.SmallData, "MB")]
+    [InlineData(SensorType.TimeSpan, "s")]
+    [InlineData(SensorType.Timing, "ns")]
+    [InlineData(SensorType.Energy, "mWh")]
+    [InlineData(SensorType.Noise, "dBA")]
+    [InlineData(SensorType.Conductivity, "uS/cm")]
+    [InlineData(SensorType.Humidity, "%")]
     public void For_returns_explicit_units_for_known_sensor_types(
         SensorType sensorType,
         string expectedUnit)
