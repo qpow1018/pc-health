@@ -1,21 +1,26 @@
 # Repository Agents Guide
 
 ## What
-- PC Health는 Windows 하드웨어와 네트워크 상태를 읽기 전용으로 진단하는 Tauri + React + Rust 데스크톱 앱이다.
-- 개발은 macOS에서 결정적인 mock 데이터로 진행할 수 있지만, 실제 하드웨어 동작은 Windows에서 검증해야 한다.
+- PC Health는 Windows PC의 성능 모니터링, 인터넷 장애 진단, 드라이버 관리를 다루는 Tauri + React + Rust 데스크톱 앱이다.
+- 성능 모니터링은 현재 활성 개발 영역이며, 인터넷 장애 진단과 드라이버 관리는 기획 단계다.
+- Windows 성능 모니터링의 기준 provider는 LibreHardwareMonitor다. CPU, GPU, 메모리, 저장장치, 메인보드, 팬, 전압을 포함한 지원 가능한 전체 하드웨어 센서 범위를 대상으로 한다.
+- 개발은 macOS의 결정적인 mock 데이터로 진행할 수 있지만 실제 하드웨어 동작은 Windows에서 검증한다.
 - `src-tauri/src/domain.rs`의 Rust 타입이 wire contract의 기준이다. frontend 타입, mock 데이터, UI 렌더링, 테스트 fixture는 이 계약과 함께 맞춰야 한다.
 
 ## Why
-- MVP는 자동화나 시스템 변경보다 안정적인 읽기 전용 상태 표시를 우선한다.
-- 미지원, 대기, 오류 상태는 숨기지 말고 UI에 명시적으로 보여줘야 한다.
-- 드라이버 설치, 관리자 권한 상승, OS 설정 변경, 상시 백그라운드 모니터링은 별도 위험 단계로 분리한다.
+- 성능 모니터링은 LibreHardwareMonitor 위에 일관된 수집 경로를 만들고 누락되거나 잘못된 값을 정상 상태로 오인하지 않는 것을 우선한다.
+- 인터넷 장애 진단과 드라이버 관리는 각각의 기획이 승인되기 전에는 구현 범위로 취급하지 않는다.
+- 하드웨어 제어, 자동 권한 상승, 드라이버 설치, OS·네트워크 설정 변경은 별도 위험 단계다.
 
 ## How
 - 구현 전 기존 문서와 코드를 먼저 읽는다:
+  - `docs/superpowers/specs/2026-06-21-lhm-harness-realignment-design.md`
   - `docs/superpowers/specs/`
   - `docs/harness/pc-health/team-spec.md`
   - `.agents/skills/`
-- 새 Windows 하드웨어 provider나 센서 라이브러리를 도입할 때는 먼저 diagnostics/harness로 raw 센서 목록과 값의 신뢰성을 검증하고, 그 증거가 생긴 뒤 dashboard `SensorSnapshot` 값에 연결한다.
+- 성능 모니터링 작업은 LibreHardwareMonitor helper, Rust collector, `SensorSnapshot`, frontend 소비자의 순서로 경계를 확인한다.
+- Windows 검증은 provider 재선정이 아니라 helper 배포·생명주기·IPC, sensor mapping, invalid value 처리, sampling 부하를 확인한다.
+- 인터넷 장애 진단과 드라이버 관리 요청은 승인된 설계가 생길 때까지 기획 또는 설계 단계에서 멈춘다.
 - 현재 파일 배치와 스타일을 우선하고, 단일 사용 abstraction이나 미래 대비 구조를 만들지 않는다.
 - UI를 추가하거나 바꿀 때는 `docs/ui-guidelines.md`를 먼저 확인하고, 기존 dashboard의 조용하고 밀도 있는 데스크톱 유틸리티 톤을 유지한다.
 - 변경 범위에 맞춰 필요한 검증만 실행한다:
