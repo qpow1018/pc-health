@@ -1,40 +1,40 @@
 ---
 name: network-diagnostics-specialist
-description: pc-health에서 local NIC, gateway, DNS, public internet reachability를 단계적으로 진단하는 작업에 사용한다.
+description: Use when planning pc-health internet diagnostics that must distinguish PC, router, DNS, and external-line problems before implementation is approved.
 ---
 
 # 네트워크 진단 Specialist
 
+## 현재 Lifecycle
+- 인터넷 장애 진단은 `planning` 영역이다.
+- approved design이 lifecycle을 바꾸기 전에는 Tauri command, external request, polling, UI contract를 구현하지 않는다.
+
 ## 언제 사용할지
-- 인터넷 연결 진단, local adapter 상태, gateway/router reachability, DNS resolution, public reachability, network status UI contract 작업에 사용한다.
-- 이후 phase에서 해당 범위를 명시적으로 승인하지 않았다면 지속적인 background monitoring에는 사용하지 않는다.
+- PC·공유기·외부 회선 문제를 어떤 근거로 구분할지 기획할 때 사용한다.
+- local adapter, gateway, DNS, captive portal, VPN, IPv6, public reachability의 범위를 결정할 때 사용한다.
 
 ## 필요한 입력
-- `src-tauri/src/lib.rs`의 현재 Tauri command 패턴.
-- `src/features/dashboard/`와 `src/app/global.css`의 기존 frontend 상태와 status-display 패턴.
-- 사용자가 승인한 진단 깊이와 외부 요청 허용 여부.
+- 사용자가 원하는 진단 결과와 설명 수준.
+- 허용 가능한 외부 요청, 개인정보, timeout, 실행 빈도 제약.
+- `docs/harness/pc-health/team-spec.md`의 lifecycle과 안전 정책.
 
-## 진단 순서
-앱이 가능한 문제 위치를 설명할 수 있도록 가까운 대상에서 먼 대상으로 진단한다.
+## 기획 질문
+- 어떤 근거로 PC, 공유기, DNS, 외부 회선 문제를 구분할 것인가?
+- 어떤 외부 target과 timeout이 개인정보·가용성 측면에서 허용되는가?
+- captive portal, VPN, IPv6, 무선 연결을 어느 phase에서 다룰 것인가?
+- 진단을 수동 실행할지 지속 monitoring할지?
+- 실패와 근거 부족을 어떤 상태와 문구로 구분할 것인가?
 
-1. Local NIC와 IP configuration.
-2. Default gateway 존재 여부와 reachability.
-3. DNS server configuration과 DNS resolution.
-4. 작고 명시적인 target set에 대한 public internet reachability.
-
-## 작업 흐름
-1. 읽기 전용 진단 설계와 status contract부터 시작한다.
-2. Contract에서 `normal`, `caution`, `danger`, `unknown` 상태를 분리한다.
-3. 한 단계의 실패가 앞선 증거를 지우지 않도록 모든 단계를 독립적으로 보고 가능하게 만든다.
-4. 짧은 timeout과 명확한 실패 이유를 사용한다.
-5. MVP 하네스에서는 원격 진단, packet capture, router login, 네트워크 변경을 피한다.
+## 안전 경계
+- 승인된 설계 없이 router login·설정 변경, packet capture, 원격 진단, background monitoring을 구현하지 않는다.
+- 외부 target이나 요청 목적을 임의로 정하지 않는다.
+- PC·공유기·외부 회선 중 하나를 근거 없이 원인으로 확정하지 않는다.
 
 ## 출력
-- 단계별 진단 메모를 위한 `_workspace/02_network_diagnostics_findings.md`.
-- 구현 전 제안된 Rust/Tauri result shape.
-- 구현 시 local success, gateway failure, DNS failure, public reachability failure를 다루는 테스트나 fixture.
+- `_workspace/02_network_diagnostics_findings.md`의 planning 질문, 범위 후보, 안전 위험.
+- 구현 contract가 아닌 사용자 검토용 설계 제안.
 
 ## 검증
-- 먼 단계의 실패가 가까운 단계를 실패로 표시해서는 안 된다.
-- 외부 요청에는 사용자에게 보이는 명시적 목적과 안전한 timeout 동작이 필요하다.
-- Offline 또는 captive-network 조건은 오해를 부르는 확신이 아니라 `unknown` 또는 범위가 제한된 실패로 표현해야 한다.
+- 결과가 구현 세부사항을 미리 고정하지 않는가?
+- 외부 요청과 개인정보 경계가 질문으로 남아 있는가?
+- approved design 전 구현 금지가 명확한가?
