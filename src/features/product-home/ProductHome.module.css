@@ -1,0 +1,67 @@
+.shell {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 40px 28px;
+}
+
+.header {
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  > p:last-child {
+    margin: 10px 0 0;
+    color: #8fa3bf;
+  }
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #79b8ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.areas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.area {
+  border: 1px solid #304563;
+  border-radius: 10px;
+  padding: 18px;
+  background: #101827;
+
+  span {
+    color: #79b8ff;
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+
+  h2 {
+    margin: 8px 0;
+    font-size: 1.1rem;
+  }
+
+  p {
+    margin: 0;
+    color: #9fb0c8;
+    line-height: 1.6;
+  }
+}
+
+@media (max-width: 700px) {
+  .shell {
+    padding: 28px 18px;
+  }
+
+  .areas {
+    grid-template-columns: 1fr;
+  }
+}
