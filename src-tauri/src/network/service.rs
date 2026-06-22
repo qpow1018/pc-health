@@ -1,10 +1,14 @@
 use super::{
     collector::NetworkCollector,
     domain::{select_default_route, NetworkProbeSnapshot},
-    unsupported::UnsupportedCollector,
 };
 use chrono::Utc;
 use std::time::Instant;
+
+#[cfg(not(target_os = "windows"))]
+use super::unsupported::UnsupportedCollector;
+#[cfg(target_os = "windows")]
+use super::windows::WindowsCollector;
 
 pub struct NetworkProbeService {
     collector: Box<dyn NetworkCollector>,
@@ -18,6 +22,11 @@ impl NetworkProbeService {
     #[cfg(not(target_os = "windows"))]
     pub fn platform() -> Self {
         Self::new(Box::new(UnsupportedCollector))
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn platform() -> Self {
+        Self::new(Box::new(WindowsCollector))
     }
 
     pub fn collect(&self) -> NetworkProbeSnapshot {
@@ -52,9 +61,7 @@ mod tests {
     use super::*;
     use crate::network::{
         collector::{NetworkCollector, NetworkInventory},
-        domain::{
-            DnsCheck, GatewayCheck, HttpCheck, ProbeError, ProbeStatus, RouteSnapshot,
-        },
+        domain::{DnsCheck, GatewayCheck, HttpCheck, ProbeError, ProbeStatus, RouteSnapshot},
     };
     use std::sync::{Arc, Mutex};
 
@@ -122,7 +129,12 @@ mod tests {
         assert_eq!(snapshot.gateway_check.status, ProbeStatus::NotRun);
         assert_eq!(snapshot.selected_route.as_ref().unwrap().interface_index, 7);
         assert_eq!(
-            gateway_route.lock().unwrap().as_ref().unwrap().interface_index,
+            gateway_route
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .interface_index,
             7
         );
     }
