@@ -1,40 +1,35 @@
 ---
 name: network-diagnostics-specialist
-description: Use when planning pc-health internet diagnostics that must distinguish PC, router, DNS, and external-line problems before implementation is approved.
+description: Use when pc-health work implements or reviews continuous wired-LAN diagnostics, network probes, incident classification, local history, or Windows validation.
 ---
 
 # 네트워크 진단 Specialist
 
-## 현재 Lifecycle
-- 인터넷 장애 진단은 `planning` 영역이다.
-- approved design이 lifecycle을 바꾸기 전에는 Tauri command, external request, polling, UI contract를 구현하지 않는다.
+## 범위
 
-## 언제 사용할지
-- PC·공유기·외부 회선 문제를 어떤 근거로 구분할지 기획할 때 사용한다.
-- local adapter, gateway, DNS, captive portal, VPN, IPv6, public reachability의 범위를 결정할 때 사용한다.
+개인용 Windows PC가 단일 공유기에 유선 LAN으로 연결된 환경을 다룬다. 앱 실행 중에만 관찰하며 Wi-Fi, VPN, proxy와 Windows service는 제외한다.
 
-## 필요한 입력
-- 사용자가 원하는 진단 결과와 설명 수준.
-- 허용 가능한 외부 요청, 개인정보, timeout, 실행 빈도 제약.
-- `docs/harness/pc-health/team-spec.md`의 lifecycle과 안전 정책.
+## 작업 흐름
 
-## 기획 질문
-- 어떤 근거로 PC, 공유기, DNS, 외부 회선 문제를 구분할 것인가?
-- 어떤 외부 target과 timeout이 개인정보·가용성 측면에서 허용되는가?
-- captive portal, VPN, IPv6, 무선 연결을 어느 phase에서 다룰 것인가?
-- 진단을 수동 실행할지 지속 monitoring할지?
-- 실패와 근거 부족을 어떤 상태와 문구로 구분할 것인가?
+1. adapter, IP, default route, gateway를 먼저 확인한다.
+2. gateway와 Windows 연결 상태를 낮은 부하로 관찰한다.
+3. 승인된 Microsoft·Google connectivity endpoint를 제한된 timeout, 동시성, 재시도로 확인한다.
+4. 반복 이상에서만 DNS·외부 연결 집중 검사를 수행하고 cooldown을 둔다.
+5. 단일 실패는 장애로 확정하지 않는다. LAN 설정 없음, gateway 실패, system DNS만 실패, 복수 외부 실패를 각각의 근거로 보존한다.
+6. 근거가 부족하거나 probe가 차단되면 `unknown` 또는 `확인 불가`로 표시한다.
+7. 상태는 `normal`, `suspected`, `incident`, `recovering`, `resolved`로 관리한다.
+8. SQLite incident는 무기한, 개별 probe는 24시간 보존하고 정리 동작을 테스트한다.
 
 ## 안전 경계
-- 승인된 설계 없이 router login·설정 변경, packet capture, 원격 진단, background monitoring을 구현하지 않는다.
-- 외부 target이나 요청 목적을 임의로 정하지 않는다.
-- PC·공유기·외부 회선 중 하나를 근거 없이 원인으로 확정하지 않는다.
 
-## 출력
-- `_workspace/02_network_diagnostics_findings.md`의 planning 질문, 범위 후보, 안전 위험.
-- 구현 contract가 아닌 사용자 검토용 설계 제안.
+- packet 내용, 방문 주소, 사용자 트래픽을 수집하지 않는다.
+- router login·설정 변경, Windows 네트워크 설정 수정, 자동 복구, 원격 업로드를 구현하지 않는다.
+- endpoint, 주기, timeout과 집중 검사 조건은 Windows probe 증거 없이 확정하지 않는다.
 
 ## 검증
-- 결과가 구현 세부사항을 미리 고정하지 않는가?
-- 외부 요청과 개인정보 경계가 질문으로 남아 있는가?
-- approved design 전 구현 금지가 명확한가?
+
+- deterministic probe 결과로 판정과 incident lifecycle을 테스트한다.
+- timeout, DNS 실패, gateway 실패, 복수 외부 실패, recovery와 DB 정리를 검증한다.
+- 실제 adapter·route 조회, 외부 요청과 패키징은 Windows artifact에서 확인한다.
+
+복잡한 조사 결과는 `_workspace/02_network_diagnostics_findings.md`에 남긴다.

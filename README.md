@@ -1,17 +1,19 @@
 # PC Health
 
-PC Health is a read-only Windows desktop performance monitor for CPU, NVIDIA GPU, and memory metrics.
+PC Health는 인터넷 장애의 원인 구간과 Windows 드라이버 상태를 확인하는 개인용 읽기 전용 데스크톱 유틸리티다.
 
 ## Status
 
-The project is in the MVP design and bootstrap phase. Development happens on macOS with mock sensor data, and hardware integration is verified on Windows.
+- 인터넷 장애 진단: 다음 활성 개발 영역. 앱 실행 중 PC, 로컬 연결, 공유기, DNS, 외부 회선 상태를 단계적으로 관찰한다.
+- 드라이버 관리: 기획 단계. 설치 정보, Windows Update 후보와 처리 이력의 읽기 전용 범위를 검토한다.
+- 성능 모니터링: 제품 범위에서 제거되었다.
 
 ## Stack
 
 - Tauri 2
 - React and TypeScript
 - Rust
-- SQLite planned for recorded sessions
+- SQLite planned for local network incident history
 
 ## Development
 
@@ -20,11 +22,11 @@ npm install
 npm run tauri dev
 ```
 
+변경 범위에 따라 `npm test`, `npm run build`, `cargo test --manifest-path src-tauri/Cargo.toml`, `cargo check --manifest-path src-tauri/Cargo.toml`을 실행한다.
+
 ## Windows Test Build
 
-The Windows PC does not need the full development toolchain for basic app testing.
-Run the `Windows Build` GitHub Actions workflow, then download the generated
-artifact from the completed workflow run and install or run it on Windows.
+`Windows Build` GitHub Actions workflow를 실행하고 완료된 run의 artifact를 Windows PC에서 설치해 검증한다.
 
 ## License
 

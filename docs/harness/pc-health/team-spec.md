@@ -2,120 +2,105 @@
 
 ## 목적
 
-이 repo-local 하네스는 런타임 오케스트레이션을 추가하지 않고 pc-health 기능 작업을 안내한다. 현재 구현 pipeline은 LibreHardwareMonitor 기반 성능 모니터링에 집중한다. 인터넷 장애 진단과 드라이버 관리는 승인된 설계가 생길 때까지 planning 영역으로 유지한다.
+이 하네스는 PC Health의 인터넷 장애 진단 구현과 드라이버 관리 기획을 안내한다. 기본 구조는 순차 pipeline이며 위험하거나 경계를 넘는 작업 끝에 QA 검토를 붙인다.
 
-기본 아키텍처는 Pipeline이며, 마지막에 Producer-Reviewer 방식의 QA 검토를 붙인다. 하드웨어, 네트워크, 드라이버, UI, repo convention 조사가 서로 독립적일 때만 제한적으로 병렬 조사를 허용한다.
+## 제품 Lifecycle
 
-## 제품 영역과 Lifecycle
-
-| 영역 | 상태 | 하네스 동작 |
+| 영역 | 상태 | 허용 범위 |
 | --- | --- | --- |
-| 성능 모니터링 | `active` | LibreHardwareMonitor 기반 설계·구현·검증 pipeline을 실행한다. |
-| 인터넷 장애 진단 | `planning` | 요구사항과 안전 경계만 정리하며 승인된 설계 전에는 구현하지 않는다. |
-| 드라이버 관리 | `planning` | 요구사항과 위험 단계를 분리하며 승인된 설계 전에는 구현하지 않는다. |
+| 인터넷 장애 진단 | `active` | 승인된 설계 안에서 계획, 구현, 검증한다. |
+| 드라이버 관리 | `planning` | 읽기 전용 범위와 데이터 source를 설계한다. 코드는 작성하지 않는다. |
+| 성능 모니터링 | `removed` | 관련 provider, helper, contract, UI를 복구하지 않는다. |
 
 ## 역할
 
 | 역할 | 스킬 | 담당 |
 | --- | --- | --- |
-| 오케스트레이터 | `.agents/skills/pc-health-orchestrator/SKILL.md` | 범위 정의, 순서 결정, specialist 선택, 종합, 검증 요약 |
-| 하드웨어 telemetry | `.agents/skills/hardware-telemetry-specialist/SKILL.md` | LHM helper, 전체 sensor inventory, Rust snapshot contract, mock, warning, Windows evidence |
-| 네트워크 진단 | `.agents/skills/network-diagnostics-specialist/SKILL.md` | PC·공유기·외부 회선 문제 구분을 위한 기획 질문과 안전 경계 |
-| 드라이버 관리 | `.agents/skills/driver-inventory-specialist/SKILL.md` | 버전·업데이트 가능 여부·처리 기록을 위한 기획 질문과 위험 경계 |
-| UI 경험 | `.agents/skills/ui-experience-specialist/SKILL.md` | 데스크톱 유틸리티 layout, 상태 계층, dashboard 밀도, 사용자 흐름 |
-| Repo convention | `.agents/skills/repo-conventions-specialist/SKILL.md` | 파일 배치, naming, 테스트 위치, Rust/TypeScript/Tauri 경계 |
-| QA 안전 검토 | `.agents/skills/qa-safety-reviewer/SKILL.md` | 안전성 검토, 누락된 테스트, 위험 기능, contract drift |
+| 오케스트레이터 | `.agents/skills/pc-health-orchestrator/SKILL.md` | 제품 영역 분류, lifecycle routing, 계획, 종합 |
+| 네트워크 진단 | `.agents/skills/network-diagnostics-specialist/SKILL.md` | probe, 판정 근거, incident 기록, Windows 검증 |
+| 드라이버 관리 | `.agents/skills/driver-inventory-specialist/SKILL.md` | inventory, update 후보, history의 읽기 전용 설계 |
+| UI 경험 | `.agents/skills/ui-experience-specialist/SKILL.md` | 현재 상태, 최근 장애, 이력 화면과 불확실성 표현 |
+| Repo convention | `.agents/skills/repo-conventions-specialist/SKILL.md` | 파일 배치, Rust/TypeScript/Tauri 경계, 테스트 |
+| QA 안전 검토 | `.agents/skills/qa-safety-reviewer/SKILL.md` | lifecycle, 외부 요청, 보존 정책, 권한과 변경 동작 검토 |
 
 ## Handoff 파일
 
-작업에 여러 단계가 있거나, 독립적인 specialist 조사 결과가 있거나, reviewer가 필요할 때만 `_workspace/`를 사용한다.
+여러 단계 작업이나 명시적 검토가 필요할 때만 `_workspace/`를 사용한다.
 
-| 파일 | 담당 | 목적 |
-| --- | --- | --- |
-| `_workspace/01_request_summary.md` | 오케스트레이터 | 사용자 목표, 가정, 성공 기준, 선택된 specialist |
-| `_workspace/02_hardware_telemetry_findings.md` | 하드웨어 telemetry | LHM helper contract, sensor mapping, invalid value, Windows evidence |
-| `_workspace/02_network_diagnostics_findings.md` | 네트워크 진단 | planning 질문, 범위 후보, 외부 요청과 안전 위험 |
-| `_workspace/02_driver_inventory_findings.md` | 드라이버 관리 | planning 질문, source 후보, 변경 작업의 위험 단계 |
-| `_workspace/02_ui_experience_findings.md` | UI 경험 | 정보 구조와 상태 표시 메모 |
-| `_workspace/02_repo_conventions_findings.md` | Repo convention | 파일 map, naming, 테스트, contract alignment |
-| `_workspace/03_design_plan.md` | 오케스트레이터 | 구현 전 종합된 설계 또는 계획 |
-| `_workspace/04_qa_review.md` | QA 안전 검토 | 판정, 발견 사항, 필수 수정, 검증 권장 사항 |
+| 파일 | 목적 |
+| --- | --- |
+| `_workspace/01_request_summary.md` | 목표, 가정, 성공 기준, lifecycle |
+| `_workspace/02_network_diagnostics_findings.md` | probe·판정·저장·Windows 증거 |
+| `_workspace/02_driver_inventory_findings.md` | source 후보, 한계, 위험 단계 |
+| `_workspace/02_ui_experience_findings.md` | 정보 구조와 상태 문구 |
+| `_workspace/02_repo_conventions_findings.md` | 최소 file map과 contract 경계 |
+| `_workspace/03_design_plan.md` | 승인된 설계를 구현 단위로 분해한 계획 |
+| `_workspace/04_qa_review.md` | verdict, finding, 필수 수정, 검증 권장 사항 |
 
-## 작업 흐름
+## 공통 흐름
 
-1. 판단하기 전에 기존 문서와 코드를 먼저 읽는다.
-2. 가정, 성공 기준, 가장 작은 유효 범위를 명시한다.
-3. 제품 영역과 lifecycle을 분류하고 현재 단계에 필요한 specialist만 선택한다.
-4. 독립 조사가 필요하면 같은 요청 snapshot을 기준으로 별도의 `_workspace/02_*_findings.md` 파일을 만든다.
-5. 작업이 사소하지 않다면 `_workspace/03_design_plan.md`에 짧은 설계나 계획을 종합한다.
-6. 기존 스타일과 파일 배치를 따라 필요한 부분만 수술적으로 구현한다.
-7. 변경한 표면에 맞춰 집중 검증을 실행한다.
-8. 위험하거나 경계를 넘나드는 작업은 최종 전달 전에 `qa-safety-reviewer`로 검토한다.
+1. 최신 spec, 관련 코드와 테스트를 읽는다.
+2. 제품 영역, lifecycle, 가정, 성공 기준을 명시한다.
+3. 필요한 specialist만 선택하고 가장 작은 변경 계획을 만든다.
+4. 현재 구조에 맞춰 수술적으로 구현한다. `planning` 영역은 구현하지 않는다.
+5. 변경한 표면을 집중 검증하고 OS 의존 동작은 Windows artifact로 확인한다.
+6. 외부 요청, 로컬 기록, 권한 또는 시스템 변경이 관련되면 QA 검토를 수행한다.
 
-## 성능 모니터링 Pipeline
+## 인터넷 장애 진단 Pipeline
 
-LibreHardwareMonitor는 Windows 성능 sensor의 기준 provider다. 목표 helper는 앱이 관리하는 persistent 프로세스이며 sample마다 새 프로세스를 실행하지 않는다. Rust는 helper 생명주기, IPC, 값 검증, domain mapping을 담당하고 별도 성능 provider를 병행하지 않는다.
+초기 대상은 공유기에 유선 LAN으로 연결된 개인용 Windows PC다. 앱 실행 중에만 동작하며 Wi-Fi, VPN, proxy, Windows service는 범위 밖이다.
 
-1. LibreHardwareMonitor helper가 hardware, subhardware, sensor를 빠짐없이 열거한다.
-2. helper contract가 type, name, identifier, parent device, unit, raw value, update error를 전달한다.
-3. Rust collector가 helper 생명주기와 IPC를 관리하고 raw sensor를 domain 상태로 변환한다.
-4. 승인된 대표 reading만 `SensorSnapshot`에 매핑하고 나머지는 raw inventory 또는 명시적 unavailable 상태로 유지한다.
-5. frontend contract, mock, UI, warning 평가를 Rust contract와 함께 맞춘다.
-6. Windows artifact에서 mapping 안정성, invalid value 처리, 권한, sampling 부하를 검증한다.
+1. 유선 adapter, IP 주소, default route와 gateway를 읽는다.
+2. 낮은 빈도로 gateway와 Windows 연결 상태를 관찰한다.
+3. Microsoft와 Google connectivity endpoint를 제한된 timeout·동시성·재시도로 확인한다.
+4. 이상이 반복될 때만 DNS와 외부 연결 집중 검사를 짧게 수행하고 cooldown을 둔다.
+5. LAN 설정 없음, gateway 실패, system DNS만 실패, 복수 외부 대상 실패를 서로 다른 근거로 보존한다.
+6. 단일 timeout으로 장애를 확정하지 않고 근거 부족은 `unknown` 또는 `확인 불가`로 둔다.
+7. `normal`, `suspected`, `incident`, `recovering`, `resolved` lifecycle을 UI와 기록에 일관되게 사용한다.
+8. SQLite에는 incident를 무기한, 개별 probe를 24시간 보존한다. packet 내용, 방문 주소, 사용자 트래픽은 저장하지 않는다.
 
-`null`, `0`, `NaN`, 무한대, 물리적으로 말이 안 되는 값은 `available`로 승격하지 않는다. 권한이 필요한 sensor 때문에 자동 권한 상승을 구현하지 않는다. raw sensor 수집 성공과 dashboard 표시 승인은 별개의 결정이다.
+외부 endpoint, polling 주기, timeout, 집중 검사 조건은 구현 전에 Windows probe로 검증한다. router 설정 변경, packet capture, 자동 복구와 외부 서버 업로드는 하지 않는다.
 
-## 검증 기준
+## 드라이버 관리 Planning
 
-- 생성된 모든 `SKILL.md`는 `name`과 `description`이 있는 YAML frontmatter를 포함한다.
-- Rust `domain.rs`는 sensor wire contract의 기준으로 유지한다.
-- wire contract가 바뀌면 TypeScript 타입, mock 데이터, UI 렌더링, 테스트를 함께 갱신한다.
-- LHM 통합은 helper contract와 Windows artifact 증거 없이 authoritative dashboard reading으로 승격하지 않는다.
-- 인터넷 장애 진단과 드라이버 관리는 승인된 설계가 생기기 전에는 구현하지 않는다.
-- UI 상태는 normal, caution, danger, unknown을 일관되게 구분한다.
-- Frontend import는 같은 폴더의 `./`만 상대경로로 허용하고, 상위 폴더 접근 `../`는 피한다. 다른 영역은 `@/...` alias를 사용한다.
-- Frontend 스타일은 `src/app/global.css`와 plain CSS Modules(`*.module.css`)를 사용한다. module CSS는 native nesting을 허용하고 JSX에서는 `styles['class-name']` 형태로 접근한다.
-- AGENTS.md는 짧고 repo-wide하게 유지하고, 긴 역할 지침은 `.agents/skills/` 또는 `docs/harness/`에 둔다.
+- 설치 정보는 SetupAPI 또는 Configuration Manager API 후보를 검토한다.
+- 업데이트 정보는 WUA에서 발견된 후보로 표현하며 vendor 전체의 최신 버전을 보장하지 않는다.
+- WUA history는 Windows Update 처리 이력일 뿐 모든 수동·vendor 설치 기록이 아니다.
+- download, install, rollback, reboot, 자동 권한 상승과 Windows Update 설정 변경은 별도 위험 단계다.
+- 승인된 설계가 lifecycle을 바꾸기 전에는 source code, Tauri command, UI contract를 만들지 않는다.
+
+## Repo와 UI 규칙
+
+- 같은 frontend 폴더는 `./`, 다른 영역은 `@/...`를 사용하고 `../` 접근은 피한다.
+- 전역 규칙은 `src/app/global.css`, feature 스타일은 plain CSS Modules와 native nesting을 사용한다.
+- JSX의 CSS Module class는 `styles['class-name']` 형태로 접근한다.
+- UI는 현재 상태, 근거, 마지막 확인 시각을 우선하고 과장된 경고나 근거 없는 확정을 피한다.
+- `AGENTS.md`는 짧게 유지하고 긴 절차는 이 문서나 specialist skill에 둔다.
 
 ## 실패 정책
 
-- 드라이버 설치, rollback, 관리자 권한 상승, OS 설정 변경, router 변경, packet capture, 원격 진단, 상시 백그라운드 모니터링을 구현하기 전에는 멈추고 사용자에게 확인한다.
-- 하드웨어, 네트워크, 벤더 데이터를 확인할 수 없을 때는 잘못된 확신보다 `unknown`을 우선한다.
-- 한쪽 contract만 바뀌었다면 Rust, TypeScript, mock 데이터, 테스트가 다시 맞춰질 때까지 완료로 보지 않는다.
-- `planning` 영역의 요청이 구현을 요구하면 설계 단계로 되돌리고 lifecycle 변경 전에는 코드를 작성하지 않는다.
-- 요청된 기능이 하드웨어, 네트워크, 드라이버, UI 작업을 한 번에 묶는다면 제품 영역별 설계와 좁은 구현 slice로 나눈다.
+- `planning` 영역이 구현으로 넘어가면 중단한다.
+- 외부 대상 하나의 실패만으로 인터넷 장애나 원인을 확정하면 중단한다.
+- probe 제한, SQLite 보존·정리, 개인정보 제외가 누락되면 중단한다.
+- driver 변경 동작이나 자동 권한 상승이 승인 없이 포함되면 중단한다.
+- 성능 모니터링 구조를 재도입하는 변경은 새로운 제품 결정 없이는 중단한다.
 
 ## 시나리오 점검
 
-### Active 시나리오
+### Active
 
-요청: SSD 온도와 팬 속도를 성능 모니터링에 추가한다.
+요청: gateway는 정상인데 인터넷이 끊기는 사건을 기록한다.
 
-1. 오케스트레이터가 요청을 `active` 성능 모니터링으로 분류한다.
-2. `hardware-telemetry-specialist`가 LHM raw inventory와 현재 `SensorSnapshot`을 확인한다.
-3. raw sensor와 user-facing 대표 reading의 mapping을 설계한다.
-4. Rust contract, TypeScript, mock, UI, warning 영향을 함께 검토한다.
-5. Windows artifact에서 helper 전달, mapping, invalid value, sampling 부하를 검증한다.
+기대: 복수 외부 근거와 DNS 결과를 수집하고 단일 timeout은 `suspected`로만 처리한다. incident 근거는 보존하고 정상 probe 원본은 24시간 뒤 정리한다.
 
-기대 결과: 별도 provider를 추가하지 않고 LHM 경로 안에서 검증된 reading만 제품에 연결한다.
+### Planning
 
-### Planning 시나리오
+요청: 설치된 드라이버와 업데이트 가능 여부를 표시한다.
 
-요청: 인터넷 장애 진단 패널을 추가한다.
+기대: SetupAPI·Configuration Manager·WUA의 source와 한계를 설계하고 구현은 승인 전까지 시작하지 않는다.
 
-1. 오케스트레이터가 요청을 `planning` 인터넷 장애 진단으로 분류한다.
-2. `network-diagnostics-specialist`가 PC·공유기·외부 회선 구분 기준, 외부 target, timeout, 개인정보와 실행 방식을 질문으로 정리한다.
-3. `_workspace/02_network_diagnostics_findings.md`와 설계 제안까지만 만든다.
-4. 승인된 설계와 lifecycle 변경 전에는 Tauri command나 UI를 구현하지 않는다.
+### 차단
 
-기대 결과: 아직 정해지지 않은 contract를 코드가 선점하지 않는다.
+요청: 장애 시 router를 재시작하거나 driver를 자동 설치한다.
 
-### 실패 시나리오
-
-요청: 드라이버 버전 확인과 업데이트 설치를 추가한다.
-
-1. 오케스트레이터가 `driver-inventory-specialist`와 `qa-safety-reviewer`로 라우팅한다.
-2. 드라이버 specialist가 지원 device, authoritative source, confidence, offline behavior, action history와 변경 단계의 질문을 정리한다.
-3. QA는 inventory와 update-check를 포함한 기능 전체가 아직 planning이며, download·설치·rollback·권한 상승은 추가 안전 승인이 필요하므로 구현을 차단한다.
-
-기대 결과: 승인된 드라이버 관리 설계 전에는 contract나 구현을 만들지 않고, 시스템 변경 작업은 별도 위험 단계로 남긴다.
+기대: 읽기 전용 범위 밖의 시스템 변경으로 분류하고 별도 설계와 명시적 승인을 요구한다.
