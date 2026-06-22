@@ -6,15 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:sensor-helper": "node scripts/build-sensor-helper.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
