@@ -158,7 +158,9 @@ mod native {
     };
     use windows::core::PCWSTR;
     use windows::Win32::{
-        Foundation::{GetLastError, ERROR_BUFFER_OVERFLOW, HANDLE},
+        Foundation::{
+            CloseHandle, GetLastError, ERROR_BUFFER_OVERFLOW, HANDLE, WAIT_OBJECT_0, WAIT_TIMEOUT,
+        },
         NetworkManagement::{
             IpHelper::{
                 FreeMibTable, GetAdaptersAddresses, GetIpForwardTable2, GetIpInterfaceEntry,
@@ -168,8 +170,13 @@ mod native {
             Ndis::IfOperStatusUp,
         },
         Networking::WinSock::{
-            FreeAddrInfoExW, GetAddrInfoExW, WSACleanup, WSAStartup, ADDRINFOEXW, AF_INET,
-            AF_INET6, AF_UNSPEC, NS_DNS, SOCKADDR_IN, SOCKADDR_IN6, TIMEVAL, WSADATA,
+            FreeAddrInfoExW, GetAddrInfoExCancel, GetAddrInfoExOverlappedResult, GetAddrInfoExW,
+            WSACleanup, WSAStartup, ADDRINFOEXW, AF_INET, AF_INET6, AF_UNSPEC, NS_DNS, SOCKADDR_IN,
+            SOCKADDR_IN6, WSADATA, WSA_IO_PENDING,
+        },
+        System::{
+            Threading::{CreateEventW, WaitForSingleObject, INFINITE},
+            IO::OVERLAPPED,
         },
     };
 
@@ -316,12 +323,19 @@ mod native {
             ai_family: AF_UNSPEC.0 as i32,
             ..Default::default()
         };
-        let timeout = TIMEVAL {
-            tv_sec: 3,
-            tv_usec: 0,
+        let event = match unsafe { CreateEventW(None, true, false, PCWSTR::null()) } {
+            Ok(handle) => EventHandle(handle),
+            Err(_) => {
+                return map_dns_error(hostname, unsafe { GetLastError().0 }, elapsed_ms(started));
+            }
         };
+        let overlapped = OVERLAPPED {
+            hEvent: event.0,
+            ..Default::default()
+        };
+        let mut cancel_handle = HANDLE::default();
         let mut result = ptr::null_mut();
-        let code = unsafe {
+        let mut code = unsafe {
             GetAddrInfoExW(
                 PCWSTR(wide.as_ptr()),
                 PCWSTR::null(),
@@ -329,12 +343,31 @@ mod native {
                 None,
                 Some(&hints),
                 &mut result,
-                Some(&timeout),
                 None,
+                Some(&overlapped),
                 None,
-                None,
+                Some(&mut cancel_handle),
             )
         };
+        if code == WSA_IO_PENDING.0 {
+            match unsafe { WaitForSingleObject(event.0, 3_000) } {
+                WAIT_OBJECT_0 => {
+                    code = unsafe { GetAddrInfoExOverlappedResult(&overlapped) };
+                }
+                WAIT_TIMEOUT => {
+                    let _ = unsafe { GetAddrInfoExCancel(&cancel_handle) };
+                    unsafe { WaitForSingleObject(event.0, INFINITE) };
+                    return map_dns_error(hostname, 10060, elapsed_ms(started));
+                }
+                _ => {
+                    return map_dns_error(
+                        hostname,
+                        unsafe { GetLastError().0 },
+                        elapsed_ms(started),
+                    );
+                }
+            }
+        }
         if code != 0 {
             return map_dns_error(hostname, code as u32, elapsed_ms(started));
         }
@@ -375,6 +408,14 @@ mod native {
     }
 
     struct WinsockSession;
+
+    struct EventHandle(HANDLE);
+
+    impl Drop for EventHandle {
+        fn drop(&mut self) {
+            let _ = unsafe { CloseHandle(self.0) };
+        }
+    }
 
     impl WinsockSession {
         fn start() -> Result<Self, u32> {
