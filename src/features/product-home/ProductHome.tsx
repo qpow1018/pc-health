@@ -1,3 +1,4 @@
+import NetworkProbePanel from "@/features/network-probe/NetworkProbePanel";
 import styles from "./ProductHome.module.css";
 
 const areas = [
@@ -34,6 +35,7 @@ export default function ProductHome() {
           </article>
         ))}
       </section>
+      <NetworkProbePanel />
     </main>
   );
 }
