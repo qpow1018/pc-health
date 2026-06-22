@@ -2,6 +2,7 @@ use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 pub enum ProbeStatus {
     Success,
     Timeout,

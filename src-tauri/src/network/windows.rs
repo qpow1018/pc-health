@@ -1,4 +1,9 @@
-use super::domain::{AdapterSnapshot, RouteSnapshot};
+use super::{
+    collector::{GOOGLE_URL, MICROSOFT_URL},
+    domain::{
+        AdapterSnapshot, DnsCheck, GatewayCheck, HttpCheck, ProbeError, ProbeStatus, RouteSnapshot,
+    },
+};
 
 const ETHERNET_IF_TYPE: u32 = 6;
 
@@ -55,9 +60,87 @@ fn map_route(route: RawRoute, adapters: &[RawAdapter]) -> RouteSnapshot {
     }
 }
 
+fn map_http_response(url: &str, status_code: u16, body: &[u8], duration_ms: u64) -> HttpCheck {
+    let body_matches = match url {
+        GOOGLE_URL => status_code == 204 && body.is_empty(),
+        MICROSOFT_URL => status_code == 200 && body == b"Microsoft Connect Test",
+        _ => false,
+    };
+
+    HttpCheck {
+        url: url.into(),
+        status: if body_matches {
+            ProbeStatus::Success
+        } else {
+            ProbeStatus::Error
+        },
+        duration_ms,
+        status_code: Some(status_code),
+        body_matches: Some(body_matches),
+        error: (!body_matches).then(|| ProbeError {
+            stage: "http".into(),
+            code: "unexpected_response".into(),
+            message: "connectivity endpoint returned an unexpected response".into(),
+            native_code: None,
+        }),
+    }
+}
+
+fn map_icmp_error(native_code: u32, duration_ms: u64) -> GatewayCheck {
+    const IP_REQ_TIMED_OUT: u32 = 11010;
+
+    GatewayCheck {
+        status: if native_code == IP_REQ_TIMED_OUT {
+            ProbeStatus::Timeout
+        } else {
+            ProbeStatus::Error
+        },
+        duration_ms,
+        reply_address: None,
+        round_trip_ms: None,
+        error: Some(ProbeError {
+            stage: "gateway".into(),
+            code: if native_code == IP_REQ_TIMED_OUT {
+                "icmp_timeout".into()
+            } else {
+                "icmp_failed".into()
+            },
+            message: format!("Windows ICMP API returned error {native_code}"),
+            native_code: Some(native_code),
+        }),
+    }
+}
+
+fn map_dns_error(hostname: &str, native_code: u32, duration_ms: u64) -> DnsCheck {
+    const WSAETIMEDOUT: u32 = 10060;
+
+    DnsCheck {
+        hostname: hostname.into(),
+        status: if native_code == WSAETIMEDOUT {
+            ProbeStatus::Timeout
+        } else {
+            ProbeStatus::Error
+        },
+        duration_ms,
+        addresses: vec![],
+        error: Some(ProbeError {
+            stage: "system_name_resolution".into(),
+            code: if native_code == WSAETIMEDOUT {
+                "dns_timeout".into()
+            } else {
+                "dns_failed".into()
+            },
+            message: format!("Windows name resolution returned error {native_code}"),
+            native_code: Some(native_code),
+        }),
+    }
+}
+
 #[cfg(target_os = "windows")]
 mod native {
-    use super::{map_route, RawAdapter, RawRoute};
+    use super::{
+        map_dns_error, map_http_response, map_icmp_error, map_route, RawAdapter, RawRoute,
+    };
     use crate::network::{
         collector::{
             NetworkCollector, NetworkInventory, GOOGLE_HOSTNAME, GOOGLE_URL, MICROSOFT_HOSTNAME,
@@ -65,17 +148,29 @@ mod native {
         },
         domain::{DnsCheck, GatewayCheck, HttpCheck, ProbeError, ProbeStatus, RouteSnapshot},
     };
-    use std::{ffi::CStr, net::Ipv4Addr, os::raw::c_char, ptr, slice};
+    use std::{
+        ffi::CStr,
+        io::Read,
+        net::{Ipv4Addr, Ipv6Addr},
+        os::raw::c_char,
+        ptr, slice,
+        time::{Duration, Instant},
+    };
+    use windows::core::PCWSTR;
     use windows::Win32::{
-        Foundation::ERROR_BUFFER_OVERFLOW,
+        Foundation::{GetLastError, ERROR_BUFFER_OVERFLOW, HANDLE},
         NetworkManagement::{
             IpHelper::{
                 FreeMibTable, GetAdaptersAddresses, GetIpForwardTable2, GetIpInterfaceEntry,
+                IcmpCloseHandle, IcmpCreateFile, IcmpSendEcho2, ICMP_ECHO_REPLY,
                 IP_ADAPTER_ADDRESSES_LH, MIB_IPFORWARD_TABLE2, MIB_IPINTERFACE_ROW,
             },
             Ndis::IfOperStatusUp,
         },
-        Networking::WinSock::{AF_INET, SOCKADDR_IN},
+        Networking::WinSock::{
+            FreeAddrInfoExW, GetAddrInfoExW, WSACleanup, WSAStartup, ADDRINFOEXW, AF_INET,
+            AF_INET6, AF_UNSPEC, NS_DNS, SOCKADDR_IN, SOCKADDR_IN6, TIMEVAL, WSADATA,
+        },
     };
 
     pub struct WindowsCollector;
@@ -109,42 +204,304 @@ mod native {
             }
         }
 
-        fn check_gateway(&self, _route: Option<&RouteSnapshot>) -> GatewayCheck {
-            GatewayCheck {
+        fn check_gateway(&self, route: Option<&RouteSnapshot>) -> GatewayCheck {
+            route.map(check_gateway).unwrap_or_else(|| GatewayCheck {
                 status: ProbeStatus::NotRun,
                 duration_ms: 0,
                 reply_address: None,
                 round_trip_ms: None,
-                error: None,
-            }
+                error: Some(ProbeError {
+                    stage: "gateway".into(),
+                    code: "no_default_route".into(),
+                    message: "gateway check requires a selected IPv4 default route".into(),
+                    native_code: None,
+                }),
+            })
         }
 
         fn check_dns(&self) -> Vec<DnsCheck> {
             [MICROSOFT_HOSTNAME, GOOGLE_HOSTNAME]
                 .into_iter()
-                .map(|hostname| DnsCheck {
-                    hostname: hostname.into(),
-                    status: ProbeStatus::NotRun,
-                    duration_ms: 0,
-                    addresses: vec![],
-                    error: None,
-                })
+                .map(check_dns)
                 .collect()
         }
 
         fn check_http(&self) -> Vec<HttpCheck> {
-            [MICROSOFT_URL, GOOGLE_URL]
-                .into_iter()
-                .map(|url| HttpCheck {
-                    url: url.into(),
-                    status: ProbeStatus::NotRun,
-                    duration_ms: 0,
-                    status_code: None,
-                    body_matches: None,
-                    error: None,
-                })
-                .collect()
+            check_http()
         }
+    }
+
+    fn check_gateway(route: &RouteSnapshot) -> GatewayCheck {
+        const ICMP_TIMEOUT_MS: u32 = 1500;
+        let started = Instant::now();
+        let destination = match route.gateway.parse::<Ipv4Addr>() {
+            Ok(address) => u32::from_ne_bytes(address.octets()),
+            Err(error) => {
+                return GatewayCheck {
+                    status: ProbeStatus::Error,
+                    duration_ms: elapsed_ms(started),
+                    reply_address: None,
+                    round_trip_ms: None,
+                    error: Some(ProbeError {
+                        stage: "gateway".into(),
+                        code: "invalid_gateway_address".into(),
+                        message: error.to_string(),
+                        native_code: None,
+                    }),
+                };
+            }
+        };
+        let handle = match unsafe { IcmpCreateFile() } {
+            Ok(handle) => IcmpHandle(handle),
+            Err(_) => return map_icmp_error(unsafe { GetLastError().0 }, elapsed_ms(started)),
+        };
+        let payload = b"pc-health";
+        let reply_size = std::mem::size_of::<ICMP_ECHO_REPLY>() + payload.len() + 8;
+        let mut reply = vec![0_usize; reply_size.div_ceil(std::mem::size_of::<usize>())];
+        let replies = unsafe {
+            IcmpSendEcho2(
+                handle.0,
+                None,
+                None,
+                None,
+                destination,
+                payload.as_ptr().cast(),
+                payload.len() as u16,
+                None,
+                reply.as_mut_ptr().cast(),
+                reply_size as u32,
+                ICMP_TIMEOUT_MS,
+            )
+        };
+        let duration_ms = elapsed_ms(started);
+        if replies == 0 {
+            return map_icmp_error(unsafe { GetLastError().0 }, duration_ms);
+        }
+        let echo = unsafe {
+            // IcmpSendEcho2 wrote at least one ICMP_ECHO_REPLY into the aligned reply buffer.
+            &*reply.as_ptr().cast::<ICMP_ECHO_REPLY>()
+        };
+        if echo.Status != 0 {
+            return map_icmp_error(echo.Status, duration_ms);
+        }
+
+        GatewayCheck {
+            status: ProbeStatus::Success,
+            duration_ms,
+            reply_address: Some(Ipv4Addr::from(echo.Address.to_ne_bytes()).to_string()),
+            round_trip_ms: Some(echo.RoundTripTime),
+            error: None,
+        }
+    }
+
+    struct IcmpHandle(HANDLE);
+
+    impl Drop for IcmpHandle {
+        fn drop(&mut self) {
+            let _ = unsafe { IcmpCloseHandle(self.0) };
+        }
+    }
+
+    fn check_dns(hostname: &str) -> DnsCheck {
+        let started = Instant::now();
+        let _winsock = match WinsockSession::start() {
+            Ok(session) => session,
+            Err(code) => return map_dns_error(hostname, code, elapsed_ms(started)),
+        };
+        let wide = hostname
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        let hints = ADDRINFOEXW {
+            ai_family: AF_UNSPEC.0 as i32,
+            ..Default::default()
+        };
+        let timeout = TIMEVAL {
+            tv_sec: 3,
+            tv_usec: 0,
+        };
+        let mut result = ptr::null_mut();
+        let code = unsafe {
+            GetAddrInfoExW(
+                PCWSTR(wide.as_ptr()),
+                PCWSTR::null(),
+                NS_DNS,
+                None,
+                Some(&hints),
+                &mut result,
+                Some(&timeout),
+                None,
+                None,
+                None,
+            )
+        };
+        if code != 0 {
+            return map_dns_error(hostname, code as u32, elapsed_ms(started));
+        }
+        let addresses_owner = AddrInfo(result);
+        let mut addresses = Vec::new();
+        let mut current = addresses_owner.0;
+        while !current.is_null() {
+            let info = unsafe {
+                // The list remains owned by `addresses_owner` until this function returns.
+                &*current
+            };
+            if !info.ai_addr.is_null() {
+                match unsafe { (*info.ai_addr).sa_family } {
+                    AF_INET => {
+                        let address = unsafe { &*info.ai_addr.cast::<SOCKADDR_IN>() };
+                        addresses.push(unsafe { ipv4_from_sockaddr_in(address) }.to_string());
+                    }
+                    AF_INET6 => {
+                        let address = unsafe { &*info.ai_addr.cast::<SOCKADDR_IN6>() };
+                        let bytes = unsafe { address.sin6_addr.u.Byte };
+                        addresses.push(Ipv6Addr::from(bytes).to_string());
+                    }
+                    _ => {}
+                }
+            }
+            current = info.ai_next;
+        }
+        addresses.sort();
+        addresses.dedup();
+
+        DnsCheck {
+            hostname: hostname.into(),
+            status: ProbeStatus::Success,
+            duration_ms: elapsed_ms(started),
+            addresses,
+            error: None,
+        }
+    }
+
+    struct WinsockSession;
+
+    impl WinsockSession {
+        fn start() -> Result<Self, u32> {
+            let mut data = WSADATA::default();
+            let code = unsafe { WSAStartup(0x0202, &mut data) };
+            if code == 0 {
+                Ok(Self)
+            } else {
+                Err(code as u32)
+            }
+        }
+    }
+
+    impl Drop for WinsockSession {
+        fn drop(&mut self) {
+            let _ = unsafe { WSACleanup() };
+        }
+    }
+
+    struct AddrInfo(*mut ADDRINFOEXW);
+
+    impl Drop for AddrInfo {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                unsafe {
+                    // GetAddrInfoExW allocated this list; FreeAddrInfoExW releases it exactly once.
+                    FreeAddrInfoExW(Some(self.0));
+                }
+            }
+        }
+    }
+
+    fn check_http() -> Vec<HttpCheck> {
+        let client = match reqwest::blocking::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(5))
+            .build()
+        {
+            Ok(client) => client,
+            Err(error) => {
+                return [MICROSOFT_URL, GOOGLE_URL]
+                    .into_iter()
+                    .map(|url| http_request_error(url, &error, 0))
+                    .collect();
+            }
+        };
+
+        [MICROSOFT_URL, GOOGLE_URL]
+            .into_iter()
+            .map(|url| check_http_endpoint(&client, url))
+            .collect()
+    }
+
+    fn check_http_endpoint(client: &reqwest::blocking::Client, url: &str) -> HttpCheck {
+        const MAX_BODY_BYTES: u64 = 4096;
+        let started = Instant::now();
+        let mut response = match client.get(url).send() {
+            Ok(response) => response,
+            Err(error) => return http_request_error(url, &error, elapsed_ms(started)),
+        };
+        let status_code = response.status().as_u16();
+        let mut body = Vec::new();
+        if let Err(error) = response
+            .by_ref()
+            .take(MAX_BODY_BYTES + 1)
+            .read_to_end(&mut body)
+        {
+            return HttpCheck {
+                url: url.into(),
+                status: ProbeStatus::Error,
+                duration_ms: elapsed_ms(started),
+                status_code: Some(status_code),
+                body_matches: None,
+                error: Some(ProbeError {
+                    stage: "http".into(),
+                    code: "body_read_failed".into(),
+                    message: error.to_string(),
+                    native_code: None,
+                }),
+            };
+        }
+        if body.len() as u64 > MAX_BODY_BYTES {
+            return HttpCheck {
+                url: url.into(),
+                status: ProbeStatus::Error,
+                duration_ms: elapsed_ms(started),
+                status_code: Some(status_code),
+                body_matches: None,
+                error: Some(ProbeError {
+                    stage: "http".into(),
+                    code: "body_too_large".into(),
+                    message: "connectivity endpoint body exceeded 4096 bytes".into(),
+                    native_code: None,
+                }),
+            };
+        }
+
+        map_http_response(url, status_code, &body, elapsed_ms(started))
+    }
+
+    fn http_request_error(url: &str, error: &reqwest::Error, duration_ms: u64) -> HttpCheck {
+        HttpCheck {
+            url: url.into(),
+            status: if error.is_timeout() {
+                ProbeStatus::Timeout
+            } else {
+                ProbeStatus::Error
+            },
+            duration_ms,
+            status_code: error.status().map(|status| status.as_u16()),
+            body_matches: None,
+            error: Some(ProbeError {
+                stage: "http".into(),
+                code: if error.is_timeout() {
+                    "http_timeout".into()
+                } else {
+                    "http_request_failed".into()
+                },
+                message: error.to_string(),
+                native_code: None,
+            }),
+        }
+    }
+
+    fn elapsed_ms(started: Instant) -> u64 {
+        u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
     }
 
     fn collect_adapters() -> Result<Vec<RawAdapter>, ProbeError> {
@@ -410,5 +767,49 @@ mod tests {
         assert_eq!(mapped.combined_metric, 7);
         assert!(!mapped.adapter_is_ethernet);
         assert!(!mapped.adapter_is_up);
+    }
+
+    #[test]
+    fn google_204_is_success() {
+        let check = map_http_response(
+            "https://connectivitycheck.gstatic.com/generate_204",
+            204,
+            &[],
+            12,
+        );
+
+        assert_eq!(check.status, ProbeStatus::Success);
+        assert_eq!(check.status_code, Some(204));
+        assert_eq!(check.body_matches, Some(true));
+    }
+
+    #[test]
+    fn microsoft_body_mismatch_is_an_error() {
+        let check = map_http_response(
+            "http://www.msftconnecttest.com/connecttest.txt",
+            200,
+            b"unexpected",
+            18,
+        );
+
+        assert_eq!(check.status, ProbeStatus::Error);
+        assert_eq!(check.body_matches, Some(false));
+        assert_eq!(check.error.unwrap().code, "unexpected_response");
+    }
+
+    #[test]
+    fn icmp_timeout_keeps_native_error_code() {
+        let check = map_icmp_error(11010, 1500);
+
+        assert_eq!(check.status, ProbeStatus::Timeout);
+        assert_eq!(check.error.unwrap().native_code, Some(11010));
+    }
+
+    #[test]
+    fn dns_timeout_is_not_reported_as_success() {
+        let check = map_dns_error("www.msftconnecttest.com", 10060, 3000);
+
+        assert_eq!(check.status, ProbeStatus::Timeout);
+        assert!(check.addresses.is_empty());
     }
 }
