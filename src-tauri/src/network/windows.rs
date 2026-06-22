@@ -714,6 +714,22 @@ mod native {
             native_code: Some(native_code),
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn dns_lookup_does_not_reject_valid_request_parameters() {
+            let check = check_dns("localhost");
+
+            assert_ne!(
+                check.error.and_then(|error| error.native_code),
+                Some(10022),
+                "GetAddrInfoExW rejected the DNS request parameters"
+            );
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
