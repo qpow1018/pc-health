@@ -875,6 +875,7 @@ mod tests {
         assert_eq!(status.error.as_ref().unwrap().native_code, None);
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn unavailable_runtime_starts_no_worker() {
         let runtime = NetworkDiagnosticsRuntime::unavailable_for_test();
