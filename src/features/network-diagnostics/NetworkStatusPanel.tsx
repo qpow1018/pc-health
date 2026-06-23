@@ -167,6 +167,8 @@ export default function NetworkStatusPanel() {
   const areaLabel = status.suspectedArea
     ? areaLabels[status.suspectedArea]
     : "확인 불가";
+  const visualLifecycle =
+    status.availability === "running" ? status.lifecycle : null;
   const rows = [
     {
       label: "게이트웨이",
@@ -192,7 +194,7 @@ export default function NetworkStatusPanel() {
 
   return (
     <section
-      className={`${styles["panel"]} ${styles[`state-${status.lifecycle ?? "unknown"}`]}`}
+      className={`${styles["panel"]} ${styles[`state-${visualLifecycle ?? "unknown"}`]}`}
       aria-labelledby="network-status-title"
     >
       <div className={styles["panel-header"]}>

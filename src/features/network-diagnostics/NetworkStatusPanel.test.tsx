@@ -8,6 +8,7 @@ import {
   unavailableStatusFixture,
 } from "./fixture";
 import type { NetworkDiagnosticStatus } from "./types";
+import styles from "./NetworkStatusPanel.module.css";
 
 const { canUseMock, getStatusMock } = vi.hoisted(() => ({
   canUseMock: vi.fn(),
@@ -205,5 +206,26 @@ describe("NetworkStatusPanel", () => {
       "status command failed",
     );
     expect(screen.getByText("확인 불가", { selector: "strong" })).toBeInTheDocument();
+  });
+
+  it("mutes an error status even when the last lifecycle was incident", async () => {
+    getStatusMock.mockResolvedValue({
+      ...incidentStatusFixture,
+      availability: "error",
+      error: {
+        stage: "runtime",
+        code: "runtime_failed",
+        message: "runtime stopped",
+        nativeCode: null,
+      },
+    });
+    render(<NetworkStatusPanel />);
+
+    const statusLabel = await screen.findByText("확인 불가", {
+      selector: "strong",
+    });
+    const panel = statusLabel.closest("section");
+    expect(panel).toHaveClass(styles["state-unknown"]);
+    expect(panel).not.toHaveClass(styles["state-incident"]);
   });
 });
