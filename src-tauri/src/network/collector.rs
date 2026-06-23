@@ -12,6 +12,7 @@ pub trait NetworkCollector: Send + Sync {
     fn collect_inventory(&self) -> NetworkInventory;
     fn check_gateway(&self, route: Option<&RouteSnapshot>) -> GatewayCheck;
     fn check_dns(&self) -> Vec<DnsCheck>;
+    fn check_http_endpoint(&self, url: &str) -> HttpCheck;
     fn check_http(&self) -> Vec<HttpCheck>;
 }
 

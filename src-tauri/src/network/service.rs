@@ -3,7 +3,10 @@ use super::{
     domain::{select_default_route, NetworkProbeSnapshot},
 };
 use chrono::Utc;
-use std::time::Instant;
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 #[cfg(not(target_os = "windows"))]
 use super::unsupported::UnsupportedCollector;
@@ -30,12 +33,34 @@ impl NetworkProbeService {
     }
 
     pub fn collect(&self) -> NetworkProbeSnapshot {
+        self.collect_full()
+    }
+
+    pub fn collect_full(&self) -> NetworkProbeSnapshot {
+        self.collect_with(None, true)
+    }
+
+    pub fn collect_baseline(&self, http_url: Option<&str>) -> NetworkProbeSnapshot {
+        self.collect_with(http_url, false)
+    }
+
+    fn collect_with(&self, http_url: Option<&str>, full: bool) -> NetworkProbeSnapshot {
         let started = Instant::now();
         let inventory = self.collector.collect_inventory();
         let selected_route = select_default_route(&inventory.default_routes);
         let gateway_check = self.collector.check_gateway(selected_route.as_ref());
-        let dns_checks = self.collector.check_dns();
-        let http_checks = self.collector.check_http();
+        let dns_checks = if full {
+            self.collector.check_dns()
+        } else {
+            vec![]
+        };
+        let http_checks = if full {
+            self.collector.check_http()
+        } else {
+            http_url
+                .map(|url| vec![self.collector.check_http_endpoint(url)])
+                .unwrap_or_default()
+        };
 
         NetworkProbeSnapshot {
             collected_at: Utc::now().to_rfc3339(),
@@ -52,6 +77,29 @@ impl NetworkProbeService {
     }
 }
 
+#[derive(Clone)]
+pub struct NetworkProbeCoordinator(Arc<Mutex<NetworkProbeService>>);
+
+impl NetworkProbeCoordinator {
+    pub fn platform() -> Self {
+        Self(Arc::new(Mutex::new(NetworkProbeService::platform())))
+    }
+
+    pub fn collect_full(&self) -> Result<NetworkProbeSnapshot, String> {
+        self.0
+            .lock()
+            .map_err(|_| "network probe coordinator lock failed".to_string())
+            .map(|service| service.collect_full())
+    }
+
+    pub fn collect_baseline(&self, url: Option<&str>) -> Result<NetworkProbeSnapshot, String> {
+        self.0
+            .lock()
+            .map_err(|_| "network probe coordinator lock failed".to_string())
+            .map(|service| service.collect_baseline(url))
+    }
+}
+
 fn duration_ms(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
@@ -60,13 +108,40 @@ fn duration_ms(started: Instant) -> u64 {
 mod tests {
     use super::*;
     use crate::network::{
-        collector::{NetworkCollector, NetworkInventory},
+        collector::{NetworkCollector, NetworkInventory, GOOGLE_URL, MICROSOFT_URL},
         domain::{DnsCheck, GatewayCheck, HttpCheck, ProbeError, ProbeStatus, RouteSnapshot},
     };
     use std::sync::{Arc, Mutex};
 
     struct FakeCollector {
         gateway_route: Arc<Mutex<Option<RouteSnapshot>>>,
+        http_calls: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl FakeCollector {
+        fn recording(http_calls: Arc<Mutex<Vec<String>>>) -> Self {
+            Self {
+                gateway_route: Arc::new(Mutex::new(None)),
+                http_calls,
+            }
+        }
+
+        fn http_check(url: &str) -> HttpCheck {
+            HttpCheck {
+                url: url.into(),
+                status: ProbeStatus::Success,
+                duration_ms: 0,
+                status_code: Some(200),
+                body_matches: Some(true),
+                error: None,
+            }
+        }
+    }
+
+    impl Default for FakeCollector {
+        fn default() -> Self {
+            Self::recording(Arc::new(Mutex::new(vec![])))
+        }
     }
 
     impl NetworkCollector for FakeCollector {
@@ -107,11 +182,31 @@ mod tests {
         }
 
         fn check_dns(&self) -> Vec<DnsCheck> {
-            vec![]
+            ["microsoft", "google"]
+                .into_iter()
+                .map(|hostname| DnsCheck {
+                    hostname: hostname.into(),
+                    status: ProbeStatus::Success,
+                    duration_ms: 0,
+                    addresses: vec![],
+                    error: None,
+                })
+                .collect()
+        }
+
+        fn check_http_endpoint(&self, url: &str) -> HttpCheck {
+            self.http_calls.lock().unwrap().push(url.into());
+            Self::http_check(url)
         }
 
         fn check_http(&self) -> Vec<HttpCheck> {
-            vec![]
+            [MICROSOFT_URL, GOOGLE_URL]
+                .into_iter()
+                .map(|url| {
+                    self.http_calls.lock().unwrap().push(url.into());
+                    Self::http_check(url)
+                })
+                .collect()
         }
     }
 
@@ -120,6 +215,7 @@ mod tests {
         let gateway_route = Arc::new(Mutex::new(None));
         let service = NetworkProbeService::new(Box::new(FakeCollector {
             gateway_route: gateway_route.clone(),
+            http_calls: Arc::new(Mutex::new(vec![])),
         }));
 
         let snapshot = service.collect();
@@ -137,5 +233,28 @@ mod tests {
                 .interface_index,
             7
         );
+    }
+
+    #[test]
+    fn baseline_collects_inventory_gateway_and_only_requested_http_endpoint() {
+        let calls = Arc::new(Mutex::new(vec![]));
+        let service = NetworkProbeService::new(Box::new(FakeCollector::recording(calls.clone())));
+
+        let snapshot = service.collect_baseline(Some(MICROSOFT_URL));
+
+        assert!(snapshot.dns_checks.is_empty());
+        assert_eq!(snapshot.http_checks.len(), 1);
+        assert_eq!(snapshot.http_checks[0].url, MICROSOFT_URL);
+        assert_eq!(*calls.lock().unwrap(), vec![MICROSOFT_URL]);
+    }
+
+    #[test]
+    fn full_probe_keeps_both_dns_and_http_targets() {
+        let service = NetworkProbeService::new(Box::new(FakeCollector::default()));
+
+        let snapshot = service.collect_full();
+
+        assert_eq!(snapshot.dns_checks.len(), 2);
+        assert_eq!(snapshot.http_checks.len(), 2);
     }
 }
