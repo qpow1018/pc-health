@@ -23,6 +23,7 @@ src-tauri/binaries/*
 *.sqlite3
 recordings/
 .superpowers/
+.worktrees/
 
 # Editor directories and files
 .vscode/*
