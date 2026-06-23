@@ -40,6 +40,7 @@ impl NetworkProbeService {
         self.collect_with(None, true)
     }
 
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     pub fn collect_baseline(&self, http_url: Option<&str>) -> NetworkProbeSnapshot {
         self.collect_with(http_url, false)
     }
@@ -78,25 +79,89 @@ impl NetworkProbeService {
 }
 
 #[derive(Clone)]
-pub struct NetworkProbeCoordinator(Arc<Mutex<NetworkProbeService>>);
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub struct NetworkProbeCoordinator {
+    service: Arc<Mutex<NetworkProbeService>>,
+    #[cfg(test)]
+    failure: Option<String>,
+}
 
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 impl NetworkProbeCoordinator {
     pub fn platform() -> Self {
-        Self(Arc::new(Mutex::new(NetworkProbeService::platform())))
+        Self {
+            service: Arc::new(Mutex::new(NetworkProbeService::platform())),
+            #[cfg(test)]
+            failure: None,
+        }
     }
 
     pub fn collect_full(&self) -> Result<NetworkProbeSnapshot, String> {
-        self.0
+        #[cfg(test)]
+        if let Some(message) = &self.failure {
+            return Err(message.clone());
+        }
+        self.service
             .lock()
             .map_err(|_| "network probe coordinator lock failed".to_string())
             .map(|service| service.collect_full())
     }
 
     pub fn collect_baseline(&self, url: Option<&str>) -> Result<NetworkProbeSnapshot, String> {
-        self.0
+        #[cfg(test)]
+        if let Some(message) = &self.failure {
+            return Err(message.clone());
+        }
+        self.service
             .lock()
             .map_err(|_| "network probe coordinator lock failed".to_string())
             .map(|service| service.collect_baseline(url))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_service_for_test(service: NetworkProbeService) -> Self {
+        Self {
+            service: Arc::new(Mutex::new(service)),
+            failure: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn failed_for_test(message: &str) -> Self {
+        Self {
+            service: Arc::new(Mutex::new(NetworkProbeService::new(Box::new(
+                FailingCollector,
+            )))),
+            failure: Some(message.into()),
+        }
+    }
+}
+
+#[cfg(test)]
+struct FailingCollector;
+
+#[cfg(test)]
+impl NetworkCollector for FailingCollector {
+    fn collector_name(&self) -> &'static str {
+        "failing"
+    }
+    fn collect_inventory(&self) -> super::collector::NetworkInventory {
+        unreachable!()
+    }
+    fn check_gateway(
+        &self,
+        _: Option<&super::domain::RouteSnapshot>,
+    ) -> super::domain::GatewayCheck {
+        unreachable!()
+    }
+    fn check_dns(&self) -> Vec<super::domain::DnsCheck> {
+        unreachable!()
+    }
+    fn check_http_endpoint(&self, _: &str) -> super::domain::HttpCheck {
+        unreachable!()
+    }
+    fn check_http(&self) -> Vec<super::domain::HttpCheck> {
+        unreachable!()
     }
 }
 
