@@ -32,6 +32,7 @@ impl NetworkProbeService {
         Self::new(Box::new(WindowsCollector))
     }
 
+    #[cfg(test)]
     pub fn collect(&self) -> NetworkProbeSnapshot {
         self.collect_full()
     }
