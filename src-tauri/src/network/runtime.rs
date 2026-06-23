@@ -142,7 +142,7 @@ impl NetworkDiagnosticsRuntime {
         Self::unavailable()
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", test))]
     fn start<W: RuntimeWait + 'static>(
         coordinator: NetworkProbeCoordinator,
         wait: W,
@@ -150,7 +150,16 @@ impl NetworkDiagnosticsRuntime {
     ) -> Self {
         let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
         let worker_latest = latest.clone();
-        let worker = std::thread::spawn(move || run_worker(coordinator, wait, worker_latest));
+        let panic_latest = latest.clone();
+        let worker = std::thread::spawn(move || {
+            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                run_worker(coordinator, wait, worker_latest);
+            }))
+            .is_err()
+            {
+                store_runtime_error(&panic_latest, "network diagnostic worker panicked".into());
+            }
+        });
         Self {
             latest,
             stop,
@@ -161,13 +170,28 @@ impl NetworkDiagnosticsRuntime {
     pub fn status(&self) -> Result<NetworkDiagnosticStatus, String> {
         match self.latest.read() {
             Ok(status) => Ok(status.clone()),
-            Err(poisoned) => Ok(poisoned.into_inner().clone()),
+            Err(poisoned) => {
+                let mut status = poisoned.into_inner().clone();
+                Self::apply_runtime_error(
+                    &mut status,
+                    "network diagnostic status lock failed".into(),
+                );
+                Ok(status)
+            }
         }
     }
 
     #[cfg(test)]
     pub fn unavailable_for_test() -> Self {
         Self::unavailable()
+    }
+
+    #[cfg(test)]
+    fn start_for_test<W: RuntimeWait + 'static>(
+        coordinator: NetworkProbeCoordinator,
+        wait: W,
+    ) -> Self {
+        Self::start(coordinator, wait, StopHandle::inactive())
     }
 
     fn unavailable() -> Self {
@@ -358,7 +382,7 @@ mod tests {
 
     #[derive(Clone)]
     struct ScriptedWait {
-        elapsed: Duration,
+        elapsed: Arc<Mutex<Duration>>,
         outcomes: VecDeque<WaitOutcome>,
         wait_log: Arc<Mutex<Vec<Duration>>>,
     }
@@ -366,7 +390,7 @@ mod tests {
     impl ScriptedWait {
         fn elapsed(count: usize) -> Self {
             Self {
-                elapsed: Duration::ZERO,
+                elapsed: Arc::new(Mutex::new(Duration::ZERO)),
                 outcomes: std::iter::repeat_n(WaitOutcome::Elapsed, count)
                     .chain([WaitOutcome::Stopped])
                     .collect(),
@@ -377,14 +401,14 @@ mod tests {
 
     impl RuntimeWait for ScriptedWait {
         fn elapsed(&self) -> Duration {
-            self.elapsed
+            *self.elapsed.lock().unwrap()
         }
 
         fn wait(&mut self, duration: Duration) -> WaitOutcome {
             self.wait_log.lock().unwrap().push(duration);
             let outcome = self.outcomes.pop_front().unwrap_or(WaitOutcome::Stopped);
             if outcome == WaitOutcome::Elapsed {
-                self.elapsed += duration;
+                *self.elapsed.lock().unwrap() += duration;
             }
             outcome
         }
@@ -408,6 +432,8 @@ mod tests {
         maximum_active: Option<Arc<AtomicUsize>>,
         first_call_barrier: Option<Arc<Barrier>>,
         collection_calls: Option<Arc<AtomicUsize>>,
+        fake_clock: Option<Arc<Mutex<Duration>>>,
+        slow_by: Duration,
     }
 
     impl RecordingCollector {
@@ -420,6 +446,8 @@ mod tests {
                 maximum_active: None,
                 first_call_barrier: None,
                 collection_calls: None,
+                fake_clock: None,
+                slow_by: Duration::ZERO,
             }
         }
 
@@ -455,6 +483,9 @@ mod tests {
                     self.first_call_barrier.as_ref().unwrap().wait();
                 }
                 active.fetch_sub(1, Ordering::SeqCst);
+            }
+            if let Some(clock) = &self.fake_clock {
+                *clock.lock().unwrap() += self.slow_by;
             }
             if matches!(self.scenario, Scenario::Unknown) {
                 return NetworkInventory {
@@ -555,6 +586,29 @@ mod tests {
                 }
             }
             checks
+        }
+    }
+
+    struct PanickingCollector;
+
+    impl NetworkCollector for PanickingCollector {
+        fn collector_name(&self) -> &'static str {
+            "panicking"
+        }
+        fn collect_inventory(&self) -> NetworkInventory {
+            panic!("collector panic")
+        }
+        fn check_gateway(&self, _: Option<&RouteSnapshot>) -> GatewayCheck {
+            unreachable!()
+        }
+        fn check_dns(&self) -> Vec<DnsCheck> {
+            unreachable!()
+        }
+        fn check_http_endpoint(&self, _: &str) -> HttpCheck {
+            unreachable!()
+        }
+        fn check_http(&self) -> Vec<HttpCheck> {
+            unreachable!()
         }
     }
 
@@ -742,8 +796,23 @@ mod tests {
         };
         let wait = ScriptedWait::elapsed(3);
         let wait_log = wait.wait_log.clone();
+        let fake_clock = wait.elapsed.clone();
+        let observed = Arc::new(Mutex::new(vec![]));
+        let worker_observed = observed.clone();
+        let collector = RecordingCollector {
+            fake_clock: Some(fake_clock),
+            slow_by: Duration::from_secs(25),
+            ..collector
+        };
         let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
-        let worker = thread::spawn(move || run_worker(coordinator(collector), wait, latest));
+        let worker = thread::spawn(move || {
+            run_worker_observed(coordinator(collector), wait, latest, |request, elapsed| {
+                worker_observed
+                    .lock()
+                    .unwrap()
+                    .push((request.clone(), elapsed))
+            })
+        });
 
         barrier.wait();
         worker.join().unwrap();
@@ -753,6 +822,15 @@ mod tests {
             .unwrap()
             .iter()
             .all(|duration| *duration == BASELINE_INTERVAL));
+        let first_baseline_at = observed
+            .lock()
+            .unwrap()
+            .iter()
+            .find_map(|(request, elapsed)| {
+                matches!(request, ProbeRequest::Baseline(_)).then_some(*elapsed)
+            })
+            .unwrap();
+        assert_eq!(first_baseline_at, Duration::from_secs(35));
         assert_eq!(maximum.load(Ordering::SeqCst), 1);
     }
 
@@ -842,6 +920,51 @@ mod tests {
         assert_eq!(
             status.error.as_ref().unwrap().message,
             "network diagnostic status lock failed"
+        );
+        assert_eq!(status.error.as_ref().unwrap().native_code, None);
+    }
+
+    #[test]
+    fn direct_poisoned_status_read_returns_runtime_error() {
+        let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
+        let poison = latest.clone();
+        let _ = thread::spawn(move || {
+            let _guard = poison.write().unwrap();
+            panic!("poison status lock");
+        })
+        .join();
+        let runtime = NetworkDiagnosticsRuntime {
+            latest,
+            stop: StopHandle::inactive(),
+            worker: None,
+        };
+
+        let status = runtime.status().unwrap();
+        assert_eq!(status.availability, RuntimeAvailability::Error);
+        assert_eq!(status.error.as_ref().unwrap().stage, "runtime");
+        assert_eq!(status.error.as_ref().unwrap().code, "runtime_failed");
+        assert_eq!(
+            status.error.as_ref().unwrap().message,
+            "network diagnostic status lock failed"
+        );
+    }
+
+    #[test]
+    fn worker_panic_is_visible_as_runtime_error_before_drop() {
+        let coordinator = NetworkProbeCoordinator::from_service_for_test(NetworkProbeService::new(
+            Box::new(PanickingCollector),
+        ));
+        let mut runtime =
+            NetworkDiagnosticsRuntime::start_for_test(coordinator, ScriptedWait::elapsed(1));
+        runtime.worker.take().unwrap().join().unwrap();
+
+        let status = runtime.status().unwrap();
+        assert_eq!(status.availability, RuntimeAvailability::Error);
+        assert_eq!(status.error.as_ref().unwrap().stage, "runtime");
+        assert_eq!(status.error.as_ref().unwrap().code, "runtime_failed");
+        assert_eq!(
+            status.error.as_ref().unwrap().message,
+            "network diagnostic worker panicked"
         );
         assert_eq!(status.error.as_ref().unwrap().native_code, None);
     }
