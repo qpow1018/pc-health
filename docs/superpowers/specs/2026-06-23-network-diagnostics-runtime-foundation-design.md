@@ -130,6 +130,8 @@ runtime availability와 진단 lifecycle을 분리한다. availability는 `start
 
 집중 검사는 단일 실패를 독립된 두 번째 observation으로 확인하는 역할을 한다. 한 endpoint 실패 후 집중 검사에서 나머지 근거가 정상이면 incident로 확정하지 않는다.
 
+정상 observation이 incident 구간의 복구 근거가 되려면 해당 구간을 실제로 검사해야 한다. 로컬 연결과 gateway incident는 baseline 정상으로 복구를 확인할 수 있지만, DNS와 외부 연결 incident는 DNS·HTTP 전체를 포함한 focused 정상 결과가 있어야 `recovering`으로 이동한다. 해당 구간을 확인하지 않은 baseline은 기존 incident를 유지한다.
+
 호환되는 반복 이상은 같은 비정상 구간이 연속으로 나온 경우다. 첫 observation이 단일 HTTP 실패라 `unknown`이었던 경우에는 focused observation에서 최초 실패 source가 계속 실패하고 추가 독립 실패가 확인되어 `dns` 또는 `external`로 구체화될 때만 호환되는 확인으로 본다. `unknown` 결과만 두 번 나온 것은 incident 확인 근거로 사용하지 않는다.
 
 ## 초기 장애 구간 판정
