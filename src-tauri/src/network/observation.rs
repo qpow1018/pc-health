@@ -212,21 +212,22 @@ fn push_topology_evidence(
     inventory_failed: bool,
     collected_at: &str,
 ) {
-    let status = if present {
-        EvidenceStatus::Success
-    } else if inventory_failed {
-        EvidenceStatus::Unavailable
-    } else {
-        EvidenceStatus::Failure
+    let confirmed = present || !inventory_failed;
+    let status = match (present, inventory_failed) {
+        (true, _) => EvidenceStatus::Success,
+        (false, true) => EvidenceStatus::Unavailable,
+        (false, false) => EvidenceStatus::Failure,
     };
-    checked_sources.push(source.clone());
-    if !present {
+    if confirmed {
+        checked_sources.push(source.clone());
+    }
+    if confirmed && !present {
         failed_sources.push(source.clone());
     }
     evidence.push(DiagnosticEvidence {
         source,
         status,
-        checked_at: Some(collected_at.into()),
+        checked_at: confirmed.then(|| collected_at.into()),
         duration_ms: None,
         detail: None,
     });
@@ -258,7 +259,7 @@ fn push_probe_evidence(
     if actually_checked {
         checked_sources.push(source.clone());
     }
-    if !matches!(status, ProbeStatus::Success | ProbeStatus::NotRun) {
+    if failed_with_status(status) {
         failed_sources.push(source.clone());
     }
     evidence.push(DiagnosticEvidence {
@@ -430,6 +431,17 @@ mod tests {
         let assessment = assess(snapshot);
 
         assert_eq!(assessment.area, Some(DiagnosticArea::Unknown));
+        assert!(assessment.failed_sources.is_empty());
+        assert!([
+            EvidenceSource::Ethernet,
+            EvidenceSource::Ipv4,
+            EvidenceSource::DefaultRoute
+        ]
+        .iter()
+        .all(|source| !assessment.checked_sources.contains(source)));
+        assert!(assessment.evidence.iter().take(3).all(|evidence| {
+            evidence.status == EvidenceStatus::Unavailable && evidence.checked_at.is_none()
+        }));
     }
 
     #[test]
@@ -586,14 +598,24 @@ mod tests {
     #[test]
     fn maps_every_probe_status_and_only_tracks_actual_checks() {
         let cases = [
-            (ProbeStatus::Success, EvidenceStatus::Success, true),
-            (ProbeStatus::Timeout, EvidenceStatus::Timeout, true),
-            (ProbeStatus::Error, EvidenceStatus::Failure, true),
-            (ProbeStatus::Unsupported, EvidenceStatus::Unavailable, false),
-            (ProbeStatus::NotRun, EvidenceStatus::NotChecked, false),
+            (ProbeStatus::Success, EvidenceStatus::Success, true, false),
+            (ProbeStatus::Timeout, EvidenceStatus::Timeout, true, true),
+            (ProbeStatus::Error, EvidenceStatus::Failure, true, true),
+            (
+                ProbeStatus::Unsupported,
+                EvidenceStatus::Unavailable,
+                false,
+                false,
+            ),
+            (
+                ProbeStatus::NotRun,
+                EvidenceStatus::NotChecked,
+                false,
+                false,
+            ),
         ];
 
-        for (probe_status, evidence_status, actually_checked) in cases {
+        for (probe_status, evidence_status, actually_checked, failed) in cases {
             let mut snapshot = snapshot();
             snapshot.gateway_check.status = probe_status;
             snapshot.gateway_check.error = None;
@@ -612,6 +634,33 @@ mod tests {
                     .contains(&EvidenceSource::Gateway),
                 actually_checked
             );
+            assert_eq!(
+                assessment.failed_sources.contains(&EvidenceSource::Gateway),
+                failed
+            );
         }
+    }
+
+    #[test]
+    fn unavailable_source_cannot_confirm_a_later_concrete_incident() {
+        use crate::network::{
+            domain::DiagnosticLifecycle, state_machine::NetworkDiagnosticStateMachine,
+        };
+
+        let mut unavailable_snapshot = snapshot();
+        unavailable_snapshot.http_checks = vec![http(MICROSOFT_URL, ProbeStatus::Unsupported)];
+        let unavailable = assess(unavailable_snapshot);
+        let concrete = assess(with_full_checks(
+            snapshot(),
+            [ProbeStatus::Success, ProbeStatus::Success],
+            [ProbeStatus::Error, ProbeStatus::Error],
+        ));
+        let mut machine = NetworkDiagnosticStateMachine::new();
+
+        let first = machine.apply(unavailable, "t0", false);
+        let second = machine.apply(concrete, "t1", true);
+
+        assert_eq!(first.lifecycle, Some(DiagnosticLifecycle::Suspected));
+        assert_eq!(second.lifecycle, Some(DiagnosticLifecycle::Suspected));
     }
 }
