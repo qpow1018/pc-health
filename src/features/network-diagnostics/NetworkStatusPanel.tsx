@@ -202,7 +202,14 @@ export default function NetworkStatusPanel() {
           <p className={styles["label"]}>CURRENT NETWORK STATUS</p>
           <h2 id="network-status-title">현재 네트워크 진단</h2>
         </div>
-        <strong className={styles["status"]}>{statusLabel}</strong>
+        <strong
+          className={styles["status"]}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {statusLabel}
+        </strong>
       </div>
 
       {!available && (

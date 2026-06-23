@@ -164,6 +164,16 @@ describe("NetworkStatusPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("announces polling changes as a polite atomic status", async () => {
+    getStatusMock.mockResolvedValue(normalStatusFixture);
+    render(<NetworkStatusPanel />);
+
+    const currentStatus = await screen.findByRole("status");
+    expect(currentStatus).toHaveTextContent("정상");
+    expect(currentStatus).toHaveAttribute("aria-live", "polite");
+    expect(currentStatus).toHaveAttribute("aria-atomic", "true");
+  });
+
   it("renders stable gateway, DNS, Microsoft and Google rows when not checked", async () => {
     getStatusMock.mockResolvedValue({
       ...normalStatusFixture,
