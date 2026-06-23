@@ -159,10 +159,10 @@ impl NetworkDiagnosticsRuntime {
     }
 
     pub fn status(&self) -> Result<NetworkDiagnosticStatus, String> {
-        self.latest
-            .read()
-            .map(|status| status.clone())
-            .map_err(|_| "network diagnostic status lock failed".into())
+        match self.latest.read() {
+            Ok(status) => Ok(status.clone()),
+            Err(poisoned) => Ok(poisoned.into_inner().clone()),
+        }
     }
 
     #[cfg(test)]
@@ -203,19 +203,36 @@ impl Drop for NetworkDiagnosticsRuntime {
 #[cfg(any(target_os = "windows", test))]
 fn run_worker<W: RuntimeWait>(
     coordinator: NetworkProbeCoordinator,
-    mut wait: W,
+    wait: W,
     latest: Arc<RwLock<NetworkDiagnosticStatus>>,
 ) {
+    run_worker_observed(coordinator, wait, latest, |_, _| {});
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn run_worker_observed<W, F>(
+    coordinator: NetworkProbeCoordinator,
+    mut wait: W,
+    latest: Arc<RwLock<NetworkDiagnosticStatus>>,
+    mut observe: F,
+) where
+    W: RuntimeWait,
+    F: FnMut(&ProbeRequest, Duration),
+{
     let mut machine = NetworkDiagnosticStateMachine::new();
     let mut baseline_count = 0_u64;
     let mut external_index = 0_usize;
     let mut last_focused = None;
 
-    if !run_probe(&coordinator, &mut machine, &latest, ProbeRequest::Full) {
+    let startup = ProbeRequest::Full;
+    observe(&startup, wait.elapsed());
+    if !run_probe(&coordinator, &mut machine, &latest, startup) {
         return;
     }
     if focused_needed(&machine.status()) {
-        if !run_probe(&coordinator, &mut machine, &latest, ProbeRequest::Focused) {
+        let focused = ProbeRequest::Focused;
+        observe(&focused, wait.elapsed());
+        if !run_probe(&coordinator, &mut machine, &latest, focused) {
             return;
         }
         last_focused = Some(wait.elapsed());
@@ -228,6 +245,7 @@ fn run_worker<W: RuntimeWait>(
         baseline_count += 1;
         let request = baseline_request(baseline_count, external_index);
         let external_due = matches!(request, ProbeRequest::Baseline(Some(_)));
+        observe(&request, wait.elapsed());
         if !run_probe(&coordinator, &mut machine, &latest, request) {
             return;
         }
@@ -239,7 +257,9 @@ fn run_worker<W: RuntimeWait>(
         let cooldown_elapsed =
             last_focused.is_none_or(|last| now.saturating_sub(last) >= FOCUSED_COOLDOWN);
         if cooldown_elapsed && focused_needed(&machine.status()) {
-            if !run_probe(&coordinator, &mut machine, &latest, ProbeRequest::Focused) {
+            let focused = ProbeRequest::Focused;
+            observe(&focused, wait.elapsed());
+            if !run_probe(&coordinator, &mut machine, &latest, focused) {
                 return;
             }
             last_focused = Some(wait.elapsed());
@@ -280,7 +300,14 @@ fn run_probe(
             *latest = status;
             true
         }
-        Err(_) => false,
+        Err(poisoned) => {
+            let mut latest = poisoned.into_inner();
+            NetworkDiagnosticsRuntime::apply_runtime_error(
+                &mut latest,
+                "network diagnostic status lock failed".into(),
+            );
+            false
+        }
     }
 }
 
@@ -300,8 +327,12 @@ fn focused_needed(status: &NetworkDiagnosticStatus) -> bool {
 
 #[cfg(any(target_os = "windows", test))]
 fn store_runtime_error(latest: &Arc<RwLock<NetworkDiagnosticStatus>>, message: String) {
-    if let Ok(mut status) = latest.write() {
-        NetworkDiagnosticsRuntime::apply_runtime_error(&mut status, message);
+    match latest.write() {
+        Ok(mut status) => NetworkDiagnosticsRuntime::apply_runtime_error(&mut status, message),
+        Err(poisoned) => {
+            let mut status = poisoned.into_inner();
+            NetworkDiagnosticsRuntime::apply_runtime_error(&mut status, message);
+        }
     }
 }
 
@@ -329,6 +360,7 @@ mod tests {
     struct ScriptedWait {
         elapsed: Duration,
         outcomes: VecDeque<WaitOutcome>,
+        wait_log: Arc<Mutex<Vec<Duration>>>,
     }
 
     impl ScriptedWait {
@@ -338,6 +370,7 @@ mod tests {
                 outcomes: std::iter::repeat_n(WaitOutcome::Elapsed, count)
                     .chain([WaitOutcome::Stopped])
                     .collect(),
+                wait_log: Arc::new(Mutex::new(vec![])),
             }
         }
     }
@@ -348,6 +381,7 @@ mod tests {
         }
 
         fn wait(&mut self, duration: Duration) -> WaitOutcome {
+            self.wait_log.lock().unwrap().push(duration);
             let outcome = self.outcomes.pop_front().unwrap_or(WaitOutcome::Stopped);
             if outcome == WaitOutcome::Elapsed {
                 self.elapsed += duration;
@@ -356,10 +390,19 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Copy)]
+    enum Scenario {
+        Normal,
+        Unknown,
+        Local,
+        Gateway,
+        Dns,
+        External,
+    }
+
     struct RecordingCollector {
         probes: Arc<Mutex<Vec<ProbeRequest>>>,
-        gateway_status: ProbeStatus,
-        unknown_inventory_failure: bool,
+        scenario: Scenario,
         failed_endpoint: Option<&'static str>,
         active: Option<Arc<AtomicUsize>>,
         maximum_active: Option<Arc<AtomicUsize>>,
@@ -371,8 +414,7 @@ mod tests {
         fn normal(probes: Arc<Mutex<Vec<ProbeRequest>>>) -> Self {
             Self {
                 probes,
-                gateway_status: ProbeStatus::Success,
-                unknown_inventory_failure: false,
+                scenario: Scenario::Normal,
                 failed_endpoint: None,
                 active: None,
                 maximum_active: None,
@@ -383,8 +425,15 @@ mod tests {
 
         fn unknown_failure(probes: Arc<Mutex<Vec<ProbeRequest>>>) -> Self {
             Self {
-                unknown_inventory_failure: true,
+                scenario: Scenario::Unknown,
                 ..Self::normal(probes)
+            }
+        }
+
+        fn scenario(scenario: Scenario) -> Self {
+            Self {
+                scenario,
+                ..Self::normal(Arc::new(Mutex::new(vec![])))
             }
         }
     }
@@ -407,7 +456,7 @@ mod tests {
                 }
                 active.fetch_sub(1, Ordering::SeqCst);
             }
-            if self.unknown_inventory_failure {
+            if matches!(self.scenario, Scenario::Unknown) {
                 return NetworkInventory {
                     adapters: vec![],
                     default_routes: vec![],
@@ -417,6 +466,13 @@ mod tests {
                         message: "inventory unavailable".into(),
                         native_code: None,
                     }],
+                };
+            }
+            if matches!(self.scenario, Scenario::Local) {
+                return NetworkInventory {
+                    adapters: vec![],
+                    default_routes: vec![],
+                    errors: vec![],
                 };
             }
             NetworkInventory {
@@ -444,7 +500,11 @@ mod tests {
 
         fn check_gateway(&self, _route: Option<&RouteSnapshot>) -> GatewayCheck {
             GatewayCheck {
-                status: self.gateway_status.clone(),
+                status: if matches!(self.scenario, Scenario::Gateway) {
+                    ProbeStatus::Timeout
+                } else {
+                    ProbeStatus::Success
+                },
                 duration_ms: 0,
                 reply_address: None,
                 round_trip_ms: None,
@@ -454,10 +514,17 @@ mod tests {
 
         fn check_dns(&self) -> Vec<DnsCheck> {
             self.probes.lock().unwrap().push(ProbeRequest::Full);
-            vec![
+            let mut checks = vec![
                 dns("www.msftconnecttest.com"),
                 dns("connectivitycheck.gstatic.com"),
-            ]
+            ];
+            if matches!(self.scenario, Scenario::Dns) {
+                for check in &mut checks {
+                    check.status = ProbeStatus::Timeout;
+                    check.addresses.clear();
+                }
+            }
+            checks
         }
 
         fn check_http_endpoint(&self, url: &str) -> HttpCheck {
@@ -479,7 +546,15 @@ mod tests {
         }
 
         fn check_http(&self) -> Vec<HttpCheck> {
-            vec![http(MICROSOFT_URL), http(GOOGLE_URL)]
+            let mut checks = vec![http(MICROSOFT_URL), http(GOOGLE_URL)];
+            if matches!(self.scenario, Scenario::Dns | Scenario::External) {
+                for check in &mut checks {
+                    check.status = ProbeStatus::Timeout;
+                    check.status_code = None;
+                    check.body_matches = None;
+                }
+            }
+            checks
         }
     }
 
@@ -521,19 +596,26 @@ mod tests {
         status
     }
 
+    fn run_requests(collector: RecordingCollector, waits: usize) -> Vec<(ProbeRequest, Duration)> {
+        let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
+        let mut requests = vec![];
+        run_worker_observed(
+            coordinator(collector),
+            ScriptedWait::elapsed(waits),
+            latest,
+            |request, elapsed| requests.push((request.clone(), elapsed)),
+        );
+        requests
+    }
+
     #[test]
     fn startup_is_full_then_external_targets_alternate_every_two_baselines() {
-        let mut probes = vec![ProbeRequest::Full];
-        let mut external_index = 0;
-        for baseline_count in 1..=5 {
-            let request = baseline_request(baseline_count, external_index);
-            if matches!(request, ProbeRequest::Baseline(Some(_))) {
-                external_index = (external_index + 1) % 2;
-            }
-            probes.push(request);
-        }
+        let requests = run_requests(RecordingCollector::normal(Arc::new(Mutex::new(vec![]))), 5);
         assert_eq!(
-            probes,
+            requests
+                .into_iter()
+                .map(|(request, _)| request)
+                .collect::<Vec<_>>(),
             vec![
                 ProbeRequest::Full,
                 ProbeRequest::Baseline(None),
@@ -547,17 +629,18 @@ mod tests {
 
     #[test]
     fn persistent_anomaly_focuses_at_startup_and_no_more_often_than_thirty_seconds() {
-        let probes = Arc::new(Mutex::new(vec![]));
-        run(RecordingCollector::unknown_failure(probes.clone()), 4);
-
-        let full_count = probes
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|request| request == &&ProbeRequest::Full)
-            .count();
+        let requests = run_requests(
+            RecordingCollector::unknown_failure(Arc::new(Mutex::new(vec![]))),
+            4,
+        );
+        let focused_at: Vec<_> = requests
+            .into_iter()
+            .filter_map(|(request, elapsed)| {
+                (request == ProbeRequest::Focused).then_some(elapsed.as_secs())
+            })
+            .collect();
         // The startup full is the first assessment; focused runs at t=0 and t=30.
-        assert_eq!(full_count, 3);
+        assert_eq!(focused_at, vec![0, 30]);
     }
 
     #[test]
@@ -587,24 +670,23 @@ mod tests {
 
     #[test]
     fn remote_incidents_need_periodic_focused_recovery_checks_but_local_incidents_do_not() {
-        for area in [
-            DiagnosticArea::Dns,
-            DiagnosticArea::External,
-            DiagnosticArea::Unknown,
-        ] {
-            let mut status = NetworkDiagnosticStatus::starting();
-            status.lifecycle = Some(DiagnosticLifecycle::Incident);
-            status.suspected_area = Some(area);
-            assert!(focused_needed(&status));
+        for scenario in [Scenario::Dns, Scenario::External, Scenario::Unknown] {
+            let focused_at: Vec<_> = run_requests(RecordingCollector::scenario(scenario), 4)
+                .into_iter()
+                .filter_map(|(request, elapsed)| {
+                    (request == ProbeRequest::Focused).then_some(elapsed.as_secs())
+                })
+                .collect();
+            assert_eq!(focused_at, vec![0, 30]);
         }
-        for area in [
-            DiagnosticArea::LocalConnection,
-            DiagnosticArea::GatewayOrLocal,
-        ] {
-            let mut status = NetworkDiagnosticStatus::starting();
-            status.lifecycle = Some(DiagnosticLifecycle::Incident);
-            status.suspected_area = Some(area);
-            assert!(!focused_needed(&status));
+        for scenario in [Scenario::Local, Scenario::Gateway] {
+            let focused_at: Vec<_> = run_requests(RecordingCollector::scenario(scenario), 4)
+                .into_iter()
+                .filter_map(|(request, elapsed)| {
+                    (request == ProbeRequest::Focused).then_some(elapsed.as_secs())
+                })
+                .collect();
+            assert_eq!(focused_at, vec![0]);
         }
     }
 
@@ -647,14 +729,59 @@ mod tests {
     }
 
     #[test]
-    fn automatic_http_requests_stay_within_hourly_limits() {
-        let steady_state_baselines = 3_600 / BASELINE_INTERVAL.as_secs();
-        let normal_http = steady_state_baselines / 2;
-        let persistent_focused_http = (3_600 / FOCUSED_COOLDOWN.as_secs()) * 2;
+    fn blocking_probe_does_not_create_catch_up_waits_or_overlap() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let maximum = Arc::new(AtomicUsize::new(0));
+        let barrier = Arc::new(Barrier::new(2));
+        let collector = RecordingCollector {
+            active: Some(active),
+            maximum_active: Some(maximum.clone()),
+            first_call_barrier: Some(barrier.clone()),
+            collection_calls: Some(Arc::new(AtomicUsize::new(0))),
+            ..RecordingCollector::normal(Arc::new(Mutex::new(vec![])))
+        };
+        let wait = ScriptedWait::elapsed(3);
+        let wait_log = wait.wait_log.clone();
+        let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
+        let worker = thread::spawn(move || run_worker(coordinator(collector), wait, latest));
 
-        // Startup is outside this steady-state hourly budget.
+        barrier.wait();
+        worker.join().unwrap();
+
+        assert!(wait_log
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|duration| *duration == BASELINE_INTERVAL));
+        assert_eq!(maximum.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn automatic_http_requests_stay_within_hourly_limits() {
+        let normal = run_requests(
+            RecordingCollector::normal(Arc::new(Mutex::new(vec![]))),
+            360,
+        );
+        let persistent = run_requests(
+            RecordingCollector::unknown_failure(Arc::new(Mutex::new(vec![]))),
+            360,
+        );
+        let normal_http = normal
+            .iter()
+            .filter(|(request, _)| matches!(request, ProbeRequest::Baseline(Some(_))))
+            .count();
+        let persistent_http: usize = persistent
+            .iter()
+            .map(|(request, elapsed)| match request {
+                ProbeRequest::Baseline(Some(_)) => 1,
+                ProbeRequest::Focused if !elapsed.is_zero() => 2,
+                _ => 0,
+            })
+            .sum();
+
+        // Startup full and its immediate focused refinement are outside steady state.
         assert_eq!(normal_http, 180);
-        assert!(normal_http + persistent_focused_http <= 420);
+        assert_eq!(persistent_http, 420);
     }
 
     #[test]
@@ -690,7 +817,7 @@ mod tests {
     }
 
     #[test]
-    fn status_reports_the_exact_lock_failure_text() {
+    fn poisoned_status_storage_is_recovered_as_runtime_error() {
         let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
         let poison = latest.clone();
         let _ = thread::spawn(move || {
@@ -698,15 +825,24 @@ mod tests {
             panic!("poison status lock");
         })
         .join();
+        run_worker(
+            coordinator(RecordingCollector::normal(Arc::new(Mutex::new(vec![])))),
+            ScriptedWait::elapsed(5),
+            latest.clone(),
+        );
         let runtime = NetworkDiagnosticsRuntime {
             latest,
             stop: StopHandle::inactive(),
             worker: None,
         };
-
+        let status = runtime.status().unwrap();
+        assert_eq!(status.availability, RuntimeAvailability::Error);
+        assert_eq!(status.error.as_ref().unwrap().stage, "runtime");
+        assert_eq!(status.error.as_ref().unwrap().code, "runtime_failed");
         assert_eq!(
-            runtime.status().unwrap_err(),
+            status.error.as_ref().unwrap().message,
             "network diagnostic status lock failed"
         );
+        assert_eq!(status.error.as_ref().unwrap().native_code, None);
     }
 }

@@ -72,7 +72,15 @@ impl NetworkDiagnosticStateMachine {
                 (DiagnosticLifecycle::Incident, self.incident_area.clone())
             }
             (Some(DiagnosticLifecycle::Recovering), true) => {
-                (DiagnosticLifecycle::Resolved, self.incident_area.clone())
+                let area = self.incident_area.clone();
+                if area
+                    .as_ref()
+                    .is_some_and(|area| assessment.verifies_recovery_for(area))
+                {
+                    (DiagnosticLifecycle::Resolved, area)
+                } else {
+                    (DiagnosticLifecycle::Recovering, area)
+                }
             }
             (Some(DiagnosticLifecycle::Recovering), false) => {
                 (DiagnosticLifecycle::Incident, self.incident_area.clone())
@@ -337,6 +345,41 @@ mod tests {
 
         assert_eq!(insufficient.lifecycle, Some(DiagnosticLifecycle::Incident));
         assert_eq!(sufficient.lifecycle, Some(DiagnosticLifecycle::Recovering));
+    }
+
+    #[test]
+    fn remote_recovery_requires_two_qualifying_full_observations() {
+        let dns_failure = assessment(
+            Some(DiagnosticArea::Dns),
+            vec![EvidenceSource::DnsMicrosoft, EvidenceSource::DnsGoogle],
+            vec![EvidenceSource::DnsMicrosoft, EvidenceSource::DnsGoogle],
+        );
+        let mut machine = confirmed_machine(DiagnosticArea::Dns, dns_failure);
+        let full_normal = normal(vec![
+            EvidenceSource::DnsMicrosoft,
+            EvidenceSource::DnsGoogle,
+        ]);
+
+        assert_eq!(
+            machine.apply(full_normal.clone(), "t2", true).lifecycle,
+            Some(DiagnosticLifecycle::Recovering)
+        );
+        assert_eq!(
+            machine
+                .apply(normal(vec![EvidenceSource::Gateway]), "t3", false)
+                .lifecycle,
+            Some(DiagnosticLifecycle::Recovering)
+        );
+        assert_eq!(
+            machine.apply(full_normal, "t4", true).lifecycle,
+            Some(DiagnosticLifecycle::Resolved)
+        );
+        assert_eq!(
+            machine
+                .apply(normal(vec![EvidenceSource::Gateway]), "t5", false)
+                .lifecycle,
+            Some(DiagnosticLifecycle::Normal)
+        );
     }
 
     #[test]
