@@ -233,6 +233,15 @@ mod native {
                 .collect()
         }
 
+        fn check_http_endpoint(&self, url: &str) -> HttpCheck {
+            let client = match build_http_client() {
+                Ok(client) => client,
+                Err(error) => return http_request_error(url, &error, 0),
+            };
+
+            request_http_endpoint(&client, url)
+        }
+
         fn check_http(&self) -> Vec<HttpCheck> {
             check_http()
         }
@@ -449,12 +458,7 @@ mod native {
     }
 
     fn check_http() -> Vec<HttpCheck> {
-        let client = match reqwest::blocking::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .connect_timeout(Duration::from_secs(3))
-            .timeout(Duration::from_secs(5))
-            .build()
-        {
+        let client = match build_http_client() {
             Ok(client) => client,
             Err(error) => {
                 return [MICROSOFT_URL, GOOGLE_URL]
@@ -466,11 +470,19 @@ mod native {
 
         [MICROSOFT_URL, GOOGLE_URL]
             .into_iter()
-            .map(|url| check_http_endpoint(&client, url))
+            .map(|url| request_http_endpoint(&client, url))
             .collect()
     }
 
-    fn check_http_endpoint(client: &reqwest::blocking::Client, url: &str) -> HttpCheck {
+    fn build_http_client() -> Result<reqwest::blocking::Client, reqwest::Error> {
+        reqwest::blocking::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(5))
+            .build()
+    }
+
+    fn request_http_endpoint(client: &reqwest::blocking::Client, url: &str) -> HttpCheck {
         const MAX_BODY_BYTES: u64 = 4096;
         let started = Instant::now();
         let mut response = match client.get(url).send() {

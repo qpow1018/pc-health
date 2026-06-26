@@ -55,6 +55,17 @@ impl NetworkCollector for UnsupportedCollector {
             .collect()
     }
 
+    fn check_http_endpoint(&self, url: &str) -> HttpCheck {
+        HttpCheck {
+            url: url.into(),
+            status: ProbeStatus::Unsupported,
+            duration_ms: 0,
+            status_code: None,
+            body_matches: None,
+            error: Some(Self::error("http")),
+        }
+    }
+
     fn check_http(&self) -> Vec<HttpCheck> {
         [MICROSOFT_URL, GOOGLE_URL]
             .into_iter()

@@ -21,6 +21,94 @@ pub struct ProbeError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeAvailability {
+    Starting,
+    Running,
+    Unavailable,
+    Error,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticLifecycle {
+    Normal,
+    Suspected,
+    Incident,
+    Recovering,
+    Resolved,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticArea {
+    LocalConnection,
+    GatewayOrLocal,
+    Dns,
+    External,
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceSource {
+    Ethernet,
+    Ipv4,
+    DefaultRoute,
+    Gateway,
+    DnsMicrosoft,
+    DnsGoogle,
+    HttpMicrosoft,
+    HttpGoogle,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceStatus {
+    Success,
+    Failure,
+    Timeout,
+    Unavailable,
+    NotChecked,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticEvidence {
+    pub source: EvidenceSource,
+    pub status: EvidenceStatus,
+    pub checked_at: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkDiagnosticStatus {
+    pub availability: RuntimeAvailability,
+    pub lifecycle: Option<DiagnosticLifecycle>,
+    pub suspected_area: Option<DiagnosticArea>,
+    pub observed_at: Option<String>,
+    pub last_full_probe_at: Option<String>,
+    pub evidence: Vec<DiagnosticEvidence>,
+    pub error: Option<ProbeError>,
+}
+
+impl NetworkDiagnosticStatus {
+    pub fn starting() -> Self {
+        Self {
+            availability: RuntimeAvailability::Starting,
+            lifecycle: None,
+            suspected_area: None,
+            observed_at: None,
+            last_full_probe_at: None,
+            evidence: vec![],
+            error: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AdapterSnapshot {
     pub name: String,
@@ -107,6 +195,40 @@ pub fn select_default_route(routes: &[RouteSnapshot]) -> Option<RouteSnapshot> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn serializes_network_diagnostic_status_contract() {
+        let status = NetworkDiagnosticStatus {
+            availability: RuntimeAvailability::Running,
+            lifecycle: Some(DiagnosticLifecycle::Suspected),
+            suspected_area: Some(DiagnosticArea::GatewayOrLocal),
+            observed_at: Some("2026-06-23T00:00:00Z".into()),
+            last_full_probe_at: None,
+            evidence: vec![DiagnosticEvidence {
+                source: EvidenceSource::Gateway,
+                status: EvidenceStatus::Timeout,
+                checked_at: Some("2026-06-23T00:00:00Z".into()),
+                duration_ms: Some(1500),
+                detail: Some("icmp_timeout".into()),
+            }],
+            error: None,
+        };
+
+        let json = serde_json::to_value(status).unwrap();
+        assert_eq!(json["availability"], "running");
+        assert_eq!(json["lifecycle"], "suspected");
+        assert_eq!(json["suspectedArea"], "gateway_or_local");
+        assert_eq!(json["evidence"][0]["source"], "gateway");
+    }
+
+    #[test]
+    fn starting_status_has_no_invented_observation() {
+        let status = NetworkDiagnosticStatus::starting();
+        assert_eq!(status.availability, RuntimeAvailability::Starting);
+        assert_eq!(status.lifecycle, None);
+        assert_eq!(status.observed_at, None);
+        assert!(status.evidence.is_empty());
+    }
 
     fn route(index: u32, ethernet: bool, up: bool, metric: u32) -> RouteSnapshot {
         RouteSnapshot {
