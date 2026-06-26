@@ -8,12 +8,6 @@ const areas = [
     status: "활성",
     description: "PC, 로컬 연결, 공유기, DNS와 외부 회선 상태를 구분합니다.",
   },
-  {
-    title: "드라이버 관리",
-    status: "기획 중",
-    description:
-      "설치 버전, Windows Update 후보와 처리 이력을 읽기 전용으로 확인합니다.",
-  },
 ];
 
 export default function ProductHome() {
@@ -23,7 +17,7 @@ export default function ProductHome() {
         <p className={styles["eyebrow"]}>READ-ONLY PC DIAGNOSTICS</p>
         <h1>PC Health</h1>
         <p>
-          인터넷 장애 진단과 드라이버 상태 확인을 위한 Windows
+          인터넷 장애의 원인 구간을 근거와 함께 구분하는 Windows
           유틸리티입니다.
         </p>
       </header>

@@ -1,6 +1,6 @@
 ---
 name: repo-conventions-specialist
-description: Use when pc-health React, TypeScript, Rust, Tauri, SQLite, network-diagnostics, or driver-planning changes must match existing placement, naming, contracts, and tests.
+description: Use when pc-health React, TypeScript, Rust, Tauri, SQLite, or network-diagnostics changes must match existing placement, naming, contracts, and tests.
 ---
 
 # Repo Conventions Specialist

@@ -7,7 +7,7 @@ vi.mock("@/features/network-diagnostics/NetworkStatusPanel", () => ({
 }));
 
 describe("ProductHome", () => {
-  it("shows network diagnostics as active and driver management as planning", () => {
+  it("shows network diagnostics as the only product area", () => {
     render(<ProductHome />);
 
     expect(
@@ -15,9 +15,9 @@ describe("ProductHome", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("활성")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "드라이버 관리" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("기획 중")).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "드라이버 관리" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("기획 중")).not.toBeInTheDocument();
     expect(screen.getByText("현재 네트워크 진단 상태")).toBeInTheDocument();
     expect(screen.queryByText(/성능 모니터/)).not.toBeInTheDocument();
   });
