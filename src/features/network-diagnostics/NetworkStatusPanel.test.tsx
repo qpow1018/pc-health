@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import NetworkStatusPanel from "./NetworkStatusPanel";
 import {
@@ -29,6 +29,12 @@ const deferred = <T,>() => {
   });
   return { promise, resolve, reject };
 };
+
+function expectAreaLabel(label: string) {
+  const areaRow = screen.getByText("추정 구간").closest("div");
+  expect(areaRow).not.toBeNull();
+  expect(within(areaRow as HTMLElement).getByText(label)).toBeInTheDocument();
+}
 
 describe("NetworkStatusPanel", () => {
   beforeEach(() => {
@@ -113,10 +119,12 @@ describe("NetworkStatusPanel", () => {
   it("shows first-check and unavailable states quietly", async () => {
     getStatusMock.mockResolvedValue(unavailableStatusFixture);
     render(<NetworkStatusPanel />);
-    expect(screen.getByText("첫 확인 중")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("첫 확인 중");
+    expectAreaLabel("첫 확인 중");
 
     await screen.findByText("Windows 네트워크 진단을 사용할 수 없습니다.");
     expect(screen.getByText("확인 불가", { selector: "strong" })).toBeInTheDocument();
+    expectAreaLabel("확인 불가");
   });
 
   it.each([
@@ -153,6 +161,7 @@ describe("NetworkStatusPanel", () => {
     render(<NetworkStatusPanel />);
 
     expect(await screen.findByText("정상")).toBeInTheDocument();
+    expectAreaLabel("해당 없음");
     expect(screen.getByText("192.168.0.1 응답")).toBeInTheDocument();
     expect(screen.getByText("connecttest.txt 응답 일치")).toBeInTheDocument();
     expect(screen.getByText("HTTP 204")).toBeInTheDocument();

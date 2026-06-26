@@ -122,6 +122,18 @@ function commandErrorStatus(caught: unknown): NetworkDiagnosticStatus {
   };
 }
 
+function areaLabelForStatus(status: NetworkDiagnosticStatus) {
+  if (status.availability === "starting") return "첫 확인 중";
+  if (status.availability === "unavailable" || status.availability === "error") {
+    return "확인 불가";
+  }
+  if (status.suspectedArea) return areaLabels[status.suspectedArea];
+  if (status.lifecycle === "normal" || status.lifecycle === "resolved") {
+    return "해당 없음";
+  }
+  return "확인 불가";
+}
+
 export default function NetworkStatusPanel() {
   const [available] = useState(canUseNetworkDiagnostics);
   const [status, setStatus] = useState<NetworkDiagnosticStatus>(
@@ -164,9 +176,7 @@ export default function NetworkStatusPanel() {
       : isQuietUnavailable || !status.lifecycle
         ? "확인 불가"
         : lifecycleLabels[status.lifecycle];
-  const areaLabel = status.suspectedArea
-    ? areaLabels[status.suspectedArea]
-    : "확인 불가";
+  const areaLabel = areaLabelForStatus(status);
   const visualLifecycle =
     status.availability === "running" ? status.lifecycle : null;
   const rows = [
