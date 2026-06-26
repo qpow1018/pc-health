@@ -25,6 +25,8 @@ const BASELINE_INTERVAL: Duration = Duration::from_secs(10);
 #[cfg(any(target_os = "windows", test))]
 const EXTERNAL_INTERVAL: Duration = Duration::from_secs(20);
 #[cfg(any(target_os = "windows", test))]
+const INITIAL_EXTERNAL_DELAY: Duration = Duration::from_secs(40);
+#[cfg(any(target_os = "windows", test))]
 const FOCUSED_COOLDOWN: Duration = Duration::from_secs(30);
 
 #[cfg(any(target_os = "windows", test))]
@@ -244,8 +246,8 @@ fn run_worker_observed<W, F>(
     F: FnMut(&ProbeRequest, Duration),
 {
     let mut machine = NetworkDiagnosticStateMachine::new();
-    let mut baseline_count = 0_u64;
     let mut external_index = 0_usize;
+    let mut next_external_due = INITIAL_EXTERNAL_DELAY;
     let mut last_focused = None;
 
     let startup = ProbeRequest::Full;
@@ -266,8 +268,7 @@ fn run_worker_observed<W, F>(
         if wait.wait(BASELINE_INTERVAL) == WaitOutcome::Stopped {
             return;
         }
-        baseline_count += 1;
-        let request = baseline_request(baseline_count, external_index);
+        let request = baseline_request(wait.elapsed(), next_external_due, external_index);
         let external_due = matches!(request, ProbeRequest::Baseline(Some(_)));
         observe(&request, wait.elapsed());
         if !run_probe(&coordinator, &mut machine, &latest, request) {
@@ -275,6 +276,7 @@ fn run_worker_observed<W, F>(
         }
         if external_due {
             external_index = (external_index + 1) % 2;
+            next_external_due = wait.elapsed() + EXTERNAL_INTERVAL;
         }
 
         let now = wait.elapsed();
@@ -292,9 +294,12 @@ fn run_worker_observed<W, F>(
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn baseline_request(baseline_count: u64, external_index: usize) -> ProbeRequest {
-    let external_due =
-        (baseline_count * BASELINE_INTERVAL.as_secs()).is_multiple_of(EXTERNAL_INTERVAL.as_secs());
+fn baseline_request(
+    elapsed: Duration,
+    next_external_due: Duration,
+    external_index: usize,
+) -> ProbeRequest {
+    let external_due = elapsed >= next_external_due;
     ProbeRequest::Baseline(external_due.then_some([MICROSOFT_URL, GOOGLE_URL][external_index]))
 }
 
@@ -663,8 +668,8 @@ mod tests {
     }
 
     #[test]
-    fn startup_is_full_then_external_targets_alternate_every_two_baselines() {
-        let requests = run_requests(RecordingCollector::normal(Arc::new(Mutex::new(vec![]))), 5);
+    fn startup_full_delays_alternating_lightweight_requests_until_forty_seconds() {
+        let requests = run_requests(RecordingCollector::normal(Arc::new(Mutex::new(vec![]))), 6);
         assert_eq!(
             requests
                 .into_iter()
@@ -673,10 +678,11 @@ mod tests {
             vec![
                 ProbeRequest::Full,
                 ProbeRequest::Baseline(None),
+                ProbeRequest::Baseline(None),
+                ProbeRequest::Baseline(None),
                 ProbeRequest::Baseline(Some(MICROSOFT_URL)),
                 ProbeRequest::Baseline(None),
                 ProbeRequest::Baseline(Some(GOOGLE_URL)),
-                ProbeRequest::Baseline(None),
             ]
         );
     }
@@ -704,7 +710,7 @@ mod tests {
             failed_endpoint: Some(MICROSOFT_URL),
             ..RecordingCollector::normal(probes.clone())
         };
-        run(collector, 4);
+        run(collector, 6);
 
         let external_baselines: Vec<_> = probes
             .lock()
@@ -844,22 +850,33 @@ mod tests {
             RecordingCollector::unknown_failure(Arc::new(Mutex::new(vec![]))),
             360,
         );
-        let normal_http = normal
-            .iter()
-            .filter(|(request, _)| matches!(request, ProbeRequest::Baseline(Some(_))))
-            .count();
-        let persistent_http: usize = persistent
-            .iter()
-            .map(|(request, elapsed)| match request {
-                ProbeRequest::Baseline(Some(_)) => 1,
-                ProbeRequest::Focused if !elapsed.is_zero() => 2,
-                _ => 0,
-            })
-            .sum();
+        let http_requests = |requests: &[(ProbeRequest, Duration)]| {
+            requests
+                .iter()
+                .filter(|(_, elapsed)| *elapsed < Duration::from_secs(3_600))
+                .map(|(request, _)| match request {
+                    ProbeRequest::Full | ProbeRequest::Focused => 2,
+                    ProbeRequest::Baseline(Some(_)) => 1,
+                    ProbeRequest::Baseline(None) => 0,
+                })
+                .sum::<usize>()
+        };
+        let endpoint_requests = |requests: &[(ProbeRequest, Duration)], endpoint| {
+            requests
+                .iter()
+                .filter(|(_, elapsed)| *elapsed < Duration::from_secs(3_600))
+                .map(|(request, _)| match request {
+                    ProbeRequest::Full | ProbeRequest::Focused => 1,
+                    ProbeRequest::Baseline(Some(target)) if *target == endpoint => 1,
+                    _ => 0,
+                })
+                .sum::<usize>()
+        };
 
-        // Startup full and its immediate focused refinement are outside steady state.
-        assert_eq!(normal_http, 180);
-        assert_eq!(persistent_http, 420);
+        assert_eq!(http_requests(&normal), 180);
+        assert_eq!(endpoint_requests(&normal, MICROSOFT_URL), 90);
+        assert_eq!(endpoint_requests(&normal, GOOGLE_URL), 90);
+        assert!(http_requests(&persistent) <= 420);
     }
 
     #[test]

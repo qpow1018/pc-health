@@ -212,9 +212,10 @@ describe("NetworkStatusPanel", () => {
     getStatusMock.mockRejectedValue(new Error("status command failed"));
     render(<NetworkStatusPanel />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "status command failed",
-    );
+    const errorDetail = await screen.findByText("status command failed");
+    expect(errorDetail).toBeVisible();
+    expect(errorDetail).not.toHaveAttribute("role", "alert");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText("확인 불가", { selector: "strong" })).toBeInTheDocument();
   });
 

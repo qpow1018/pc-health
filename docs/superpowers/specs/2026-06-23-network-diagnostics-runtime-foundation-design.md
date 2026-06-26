@@ -22,7 +22,7 @@ PC Health가 실행 중인 동안 유선 LAN 상태를 자동으로 관찰하고
 
 - 앱 시작 시 전체 probe 1회
 - 10초 주기의 adapter, IPv4, default route, gateway 관찰
-- 20초마다 Microsoft와 Google endpoint를 번갈아 확인하는 외부 경량 검사
+- 시작 전체 probe 이후 40초부터 20초마다 Microsoft와 Google endpoint를 번갈아 확인하는 외부 경량 검사
 - 이상 감지 시 gateway, system DNS 2곳과 HTTP endpoint 2곳을 확인하는 집중 검사
 - 30초 집중 검사 cooldown과 중복 실행 방지
 - `normal`, `suspected`, `incident`, `recovering`, `resolved` lifecycle
@@ -99,13 +99,13 @@ Windows API, thread와 wall clock에 의존하지 않는 순수 Rust 상태 전�
 | --- | --- | --- |
 | 시작 전체 probe | 앱 시작 시 1회 | retry 없음 |
 | adapter, route, gateway | 10초 | 직렬 실행 |
-| 외부 경량 HTTP | 20초 | Microsoft와 Google 한 곳씩 교대 |
+| 외부 경량 HTTP | 시작 전체 probe 이후 40초부터 20초 | Microsoft와 Google 한 곳씩 교대 |
 | 집중 검사 | 이상 감지 시 | DNS 2곳과 HTTP 2곳, retry 없음 |
 | 집중 검사 cooldown | 완료 후 30초 | cooldown 중 baseline은 계속 수행 |
 
 이 값은 이번 Windows 검증의 후보값이다. 코드에서는 runtime 전용 상수 한곳에 두되 사용자 설정과 범용 configuration abstraction을 만들지 않는다.
 
-정상 상태의 자동 HTTP 요청 상한은 시간당 180회이며 각 endpoint는 시간당 90회다. 이상이 지속되어 cooldown마다 집중 검사가 필요한 최악의 경우에도 자동 HTTP 요청은 시간당 420회를 넘지 않는다. manual raw probe는 사용자가 명시적으로 실행한 별도 요청이다.
+정상 상태의 자동 HTTP 요청 상한은 시작 전체 probe를 포함해 시간당 180회이며 각 endpoint는 시간당 90회다. 이를 위해 첫 외부 경량 HTTP는 시작 전체 probe 이후 40초에 실행하고 이후 20초마다 교대한다. 이상이 지속되어 cooldown마다 집중 검사가 필요한 최악의 경우에도 자동 HTTP 요청은 시간당 420회를 넘지 않는다. manual raw probe는 사용자가 명시적으로 실행한 별도 요청이다.
 
 probe가 주기보다 오래 걸리면 해당 cycle이 끝난 뒤 다음 주기를 새로 계산한다. 같은 종류의 누락된 cycle을 몰아서 실행하지 않는다. 집중 검사 cooldown 중에도 반복된 baseline 이상은 lifecycle 전이 근거가 될 수 있지만 새 집중 검사는 시작하지 않는다.
 
@@ -229,7 +229,7 @@ frontend는 Tauri 환경에서 1초마다 이 command를 호출한다. 이는 �
 ### Rust runtime
 
 - 시작 시 full probe를 한 번 실행한다.
-- baseline은 10초, 외부 경량 검사는 20초 역할을 지킨다.
+- baseline은 10초, 외부 경량 검사는 시작 40초 뒤부터 20초 역할을 지킨다.
 - Microsoft와 Google endpoint를 교대한다.
 - 이상 감지 시 focused probe를 실행한다.
 - focused probe 완료 후 30초 cooldown을 지킨다.

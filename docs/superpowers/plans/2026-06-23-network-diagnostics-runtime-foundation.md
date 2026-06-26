@@ -463,15 +463,16 @@ Define tests against a fake wait driver, not wall-clock sleeps:
 
 ```rust
 #[test]
-fn startup_is_full_then_external_targets_alternate_every_two_baselines() {
-    let run = scripted_runtime(vec![WaitOutcome::Elapsed; 5]);
+fn startup_full_delays_alternating_lightweight_requests_until_forty_seconds() {
+    let run = scripted_runtime(vec![WaitOutcome::Elapsed; 6]);
     assert_eq!(run.probes, vec![
         ProbeRequest::Full,
+        ProbeRequest::Baseline(None),
+        ProbeRequest::Baseline(None),
         ProbeRequest::Baseline(None),
         ProbeRequest::Baseline(Some(MICROSOFT_URL)),
         ProbeRequest::Baseline(None),
         ProbeRequest::Baseline(Some(GOOGLE_URL)),
-        ProbeRequest::Baseline(None),
     ]);
 }
 
@@ -492,6 +493,8 @@ fn automatic_http_requests_stay_within_hourly_limits() {
     let normal = scheduled_requests_for_one_hour(false);
     let persistent_incident = scheduled_requests_for_one_hour(true);
     assert_eq!(normal.http_request_count(), 180);
+    assert_eq!(normal.endpoint_request_count(MICROSOFT_URL), 90);
+    assert_eq!(normal.endpoint_request_count(GOOGLE_URL), 90);
     assert!(persistent_incident.http_request_count() <= 420);
 }
 ```

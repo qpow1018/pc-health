@@ -102,7 +102,30 @@ impl NetworkDiagnosticStateMachine {
         if full {
             self.status.last_full_probe_at = Some(observed_at.into());
         }
-        self.status.evidence = assessment.evidence;
+        for current in assessment.evidence {
+            if let Some(cached) = self
+                .status
+                .evidence
+                .iter_mut()
+                .find(|cached| cached.source == current.source)
+            {
+                *cached = current;
+            } else {
+                self.status.evidence.push(current);
+            }
+        }
+        self.status
+            .evidence
+            .sort_by_key(|evidence| match evidence.source {
+                EvidenceSource::Ethernet => 0,
+                EvidenceSource::Ipv4 => 1,
+                EvidenceSource::DefaultRoute => 2,
+                EvidenceSource::Gateway => 3,
+                EvidenceSource::DnsMicrosoft => 4,
+                EvidenceSource::DnsGoogle => 5,
+                EvidenceSource::HttpMicrosoft => 6,
+                EvidenceSource::HttpGoogle => 7,
+            });
         self.status.error = None;
         self.previous_failed_sources = assessment.failed_sources;
 
@@ -178,6 +201,16 @@ mod tests {
                 .collect(),
             failed_sources: failed,
             checked_sources: checked,
+        }
+    }
+
+    fn evidence_at(source: EvidenceSource, checked_at: &str) -> DiagnosticEvidence {
+        DiagnosticEvidence {
+            source,
+            status: EvidenceStatus::Success,
+            checked_at: Some(checked_at.into()),
+            duration_ms: Some(1),
+            detail: None,
         }
     }
 
@@ -383,16 +416,64 @@ mod tests {
     }
 
     #[test]
-    fn latest_evidence_and_observed_at_always_replace_previous_values() {
+    fn latest_evidence_cache_preserves_sources_absent_from_current_assessment() {
         let mut machine = NetworkDiagnosticStateMachine::new();
-        machine.apply(gateway_failure(), "t0", false);
-        let latest = unknown_failure(EvidenceSource::HttpGoogle);
+        let full = DiagnosticAssessment {
+            area: None,
+            evidence: vec![
+                evidence_at(EvidenceSource::DnsMicrosoft, "dns-t0"),
+                evidence_at(EvidenceSource::DnsGoogle, "dns-t0"),
+                evidence_at(EvidenceSource::HttpMicrosoft, "ms-t0"),
+                evidence_at(EvidenceSource::HttpGoogle, "google-t0"),
+            ],
+            failed_sources: vec![],
+            checked_sources: vec![
+                EvidenceSource::DnsMicrosoft,
+                EvidenceSource::DnsGoogle,
+                EvidenceSource::HttpMicrosoft,
+                EvidenceSource::HttpGoogle,
+            ],
+        };
+        machine.apply(full, "t0", true);
+        machine.apply(normal(vec![EvidenceSource::Gateway]), "t1", false);
+        machine.apply(
+            DiagnosticAssessment {
+                area: None,
+                evidence: vec![evidence_at(EvidenceSource::HttpMicrosoft, "ms-t2")],
+                failed_sources: vec![],
+                checked_sources: vec![EvidenceSource::HttpMicrosoft],
+            },
+            "t2",
+            false,
+        );
+        machine.apply(normal(vec![EvidenceSource::Gateway]), "t3", false);
+        let status = machine.apply(
+            DiagnosticAssessment {
+                area: None,
+                evidence: vec![evidence_at(EvidenceSource::HttpGoogle, "google-t4")],
+                failed_sources: vec![],
+                checked_sources: vec![EvidenceSource::HttpGoogle],
+            },
+            "t4",
+            false,
+        );
 
-        let status = machine.apply(latest.clone(), "t1", true);
-
-        assert_eq!(status.observed_at.as_deref(), Some("t1"));
-        assert_eq!(status.last_full_probe_at.as_deref(), Some("t1"));
-        assert_eq!(status.evidence, latest.evidence);
+        assert_eq!(status.observed_at.as_deref(), Some("t4"));
+        assert_eq!(status.last_full_probe_at.as_deref(), Some("t0"));
+        assert_eq!(
+            status
+                .evidence
+                .iter()
+                .map(|evidence| (&evidence.source, evidence.checked_at.as_deref()))
+                .collect::<Vec<_>>(),
+            vec![
+                (&EvidenceSource::Gateway, Some("evidence-time")),
+                (&EvidenceSource::DnsMicrosoft, Some("dns-t0")),
+                (&EvidenceSource::DnsGoogle, Some("dns-t0")),
+                (&EvidenceSource::HttpMicrosoft, Some("ms-t2")),
+                (&EvidenceSource::HttpGoogle, Some("google-t4")),
+            ]
+        );
         assert_eq!(machine.status(), status);
     }
 }

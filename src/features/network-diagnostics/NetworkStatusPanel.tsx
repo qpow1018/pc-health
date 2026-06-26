@@ -221,7 +221,7 @@ export default function NetworkStatusPanel() {
         </p>
       )}
       {status.error && (
-        <p className={styles["availability"]} role="alert">
+        <p className={styles["availability"]}>
           {status.error.message}
         </p>
       )}
