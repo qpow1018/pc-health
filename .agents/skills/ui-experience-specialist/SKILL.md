@@ -1,6 +1,6 @@
 ---
 name: ui-experience-specialist
-description: Use when approved pc-health network or driver surfaces need a quiet desktop-utility UI for current status, evidence, incidents, history, unavailable states, or warnings.
+description: Use when approved pc-health network surfaces need a quiet desktop-utility UI for current status, evidence, incidents, history, unavailable states, or warnings.
 ---
 
 # UI Experience Specialist
