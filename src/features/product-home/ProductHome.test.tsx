@@ -2,17 +2,24 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ProductHome from "./ProductHome";
 
+const { openHistoryMock } = vi.hoisted(() => ({
+  openHistoryMock: vi.fn(),
+}));
+
 vi.mock("@/features/network-diagnostics/NetworkStatusPanel", () => ({
   default: () => <section>현재 네트워크 진단 상태</section>,
 }));
 
 vi.mock("@/features/network-incidents/RecentIncidentsPanel", () => ({
-  default: () => <section>최근 장애</section>,
+  default: ({ onOpenHistory }: { onOpenHistory?: () => void }) => {
+    openHistoryMock.mockImplementation(onOpenHistory ?? vi.fn());
+    return <section>최근 장애</section>;
+  },
 }));
 
 describe("ProductHome", () => {
   it("shows network diagnostics as the only product area", () => {
-    render(<ProductHome />);
+    render(<ProductHome onOpenIncidentHistory={vi.fn()} />);
 
     expect(
       screen.getByRole("heading", { name: "인터넷 장애 진단" }),
@@ -25,5 +32,14 @@ describe("ProductHome", () => {
     expect(screen.getByText("현재 네트워크 진단 상태")).toBeInTheDocument();
     expect(screen.getByText("최근 장애")).toBeInTheDocument();
     expect(screen.queryByText(/성능 모니터/)).not.toBeInTheDocument();
+  });
+
+  it("passes the incident history action to the recent incidents panel", () => {
+    const onOpenIncidentHistory = vi.fn();
+
+    render(<ProductHome onOpenIncidentHistory={onOpenIncidentHistory} />);
+    openHistoryMock();
+
+    expect(onOpenIncidentHistory).toHaveBeenCalledTimes(1);
   });
 });

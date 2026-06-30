@@ -11,7 +11,11 @@ const areas = [
   },
 ];
 
-export default function ProductHome() {
+export default function ProductHome({
+  onOpenIncidentHistory,
+}: {
+  onOpenIncidentHistory: () => void;
+}) {
   return (
     <main className={styles["shell"]}>
       <header className={styles["header"]}>
@@ -32,7 +36,7 @@ export default function ProductHome() {
         ))}
       </section>
       <NetworkStatusPanel />
-      <RecentIncidentsPanel />
+      <RecentIncidentsPanel onOpenHistory={onOpenIncidentHistory} />
       <NetworkProbePanel />
     </main>
   );

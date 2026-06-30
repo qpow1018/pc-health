@@ -27,7 +27,11 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-export default function RecentIncidentsPanel() {
+export default function RecentIncidentsPanel({
+  onOpenHistory,
+}: {
+  onOpenHistory?: () => void;
+}) {
   const [available] = useState(canUseNetworkIncidents);
   const [incidents, setIncidents] = useState<NetworkIncident[]>([]);
   const [failed, setFailed] = useState(!available);
@@ -59,6 +63,11 @@ export default function RecentIncidentsPanel() {
       <header className={styles["header"]}>
         <p>RECENT INCIDENTS</p>
         <h2 id="recent-incidents-title">최근 장애</h2>
+        {onOpenHistory ? (
+          <button type="button" onClick={onOpenHistory}>
+            전체 이력 보기
+          </button>
+        ) : null}
       </header>
 
       {loading ? <p className={styles["muted"]}>장애 기록 확인 중</p> : null}

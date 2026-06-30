@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ongoingIncidentFixture,
@@ -32,6 +32,26 @@ describe("RecentIncidentsPanel", () => {
     expect(
       await screen.findByText("저장된 장애 기록이 없습니다."),
     ).toBeInTheDocument();
+  });
+
+  it("hides the full history action when no callback is provided", () => {
+    getRecentMock.mockResolvedValue([]);
+
+    render(<RecentIncidentsPanel />);
+
+    expect(
+      screen.queryByRole("button", { name: "전체 이력 보기" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("calls the full history action when callback is provided", () => {
+    getRecentMock.mockResolvedValue([]);
+    const onOpenHistory = vi.fn();
+
+    render(<RecentIncidentsPanel onOpenHistory={onOpenHistory} />);
+    fireEvent.click(screen.getByRole("button", { name: "전체 이력 보기" }));
+
+    expect(onOpenHistory).toHaveBeenCalledTimes(1);
   });
 
   it("renders recent incidents with stable status and area labels", async () => {
