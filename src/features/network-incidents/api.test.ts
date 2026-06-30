@@ -11,7 +11,11 @@ vi.mock("@tauri-apps/api/core", () => ({
   isTauri: isTauriMock,
 }));
 
-import { canUseNetworkIncidents, getRecentNetworkIncidents } from "./api";
+import {
+  canUseNetworkIncidents,
+  getNetworkIncidents,
+  getRecentNetworkIncidents,
+} from "./api";
 
 describe("network incidents API", () => {
   beforeEach(() => {
@@ -26,6 +30,15 @@ describe("network incidents API", () => {
       resolvedIncidentFixture,
     ]);
     expect(invokeMock).toHaveBeenCalledWith("get_recent_network_incidents");
+  });
+
+  it("reads full incident history from Tauri", async () => {
+    invokeMock.mockResolvedValue([resolvedIncidentFixture]);
+
+    await expect(getNetworkIncidents()).resolves.toEqual([
+      resolvedIncidentFixture,
+    ]);
+    expect(invokeMock).toHaveBeenCalledWith("get_network_incidents");
   });
 
   it("reports browser mode without invoking Tauri", () => {
