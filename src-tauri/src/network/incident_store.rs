@@ -155,46 +155,45 @@ impl NetworkIncidentStore {
 
     pub fn recent_incidents(&self, limit: usize) -> Result<Vec<NetworkIncident>, String> {
         let limit = i64::try_from(limit).map_err(|_| "incident limit is too large".to_string())?;
+        self.query_incidents(Some(limit))
+    }
+
+    pub fn all_incidents(&self) -> Result<Vec<NetworkIncident>, String> {
+        self.query_incidents(None)
+    }
+
+    fn query_incidents(&self, limit: Option<i64>) -> Result<Vec<NetworkIncident>, String> {
         let connection = self
             .connection
             .lock()
             .map_err(|_| "incident store lock failed".to_string())?;
-        let mut statement = connection
-            .prepare(
-                "SELECT id, status, area, started_at, last_observed_at, resolved_at, summary
-                 FROM network_incidents
-                 ORDER BY started_at DESC, id DESC
-                 LIMIT ?1",
-            )
-            .map_err(|error| error.to_string())?;
-        let rows = statement
-            .query_map(params![limit], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, String>(6)?,
-                ))
-            })
-            .map_err(|error| error.to_string())?;
 
         let mut incidents = Vec::new();
-        for row in rows {
-            let (id, status, area, started_at, last_observed_at, resolved_at, summary) =
-                row.map_err(|error| error.to_string())?;
-            incidents.push(NetworkIncident {
-                id,
-                status: NetworkIncidentStatus::from_str(&status)?,
-                area: DiagnosticArea::from_str(&area)?,
-                started_at,
-                last_observed_at,
-                resolved_at,
-                summary,
-                representative_evidence: incident_evidence(&connection, id)?,
-            });
+        if let Some(limit) = limit {
+            let mut statement = connection
+                .prepare(
+                    "SELECT id, status, area, started_at, last_observed_at, resolved_at, summary
+                     FROM network_incidents
+                     ORDER BY started_at DESC, id DESC
+                     LIMIT ?1",
+                )
+                .map_err(|error| error.to_string())?;
+            let rows = statement
+                .query_map(params![limit], incident_row)
+                .map_err(|error| error.to_string())?;
+            push_incidents(&connection, rows, &mut incidents)?;
+        } else {
+            let mut statement = connection
+                .prepare(
+                    "SELECT id, status, area, started_at, last_observed_at, resolved_at, summary
+                     FROM network_incidents
+                     ORDER BY started_at DESC, id DESC",
+                )
+                .map_err(|error| error.to_string())?;
+            let rows = statement
+                .query_map([], incident_row)
+                .map_err(|error| error.to_string())?;
+            push_incidents(&connection, rows, &mut incidents)?;
         }
         Ok(incidents)
     }
@@ -261,6 +260,63 @@ impl NetworkIncidentStore {
             )
             .map_err(|error| error.to_string())
     }
+}
+
+fn incident_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<(
+    i64,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+)> {
+    Ok((
+        row.get::<_, i64>(0)?,
+        row.get::<_, String>(1)?,
+        row.get::<_, String>(2)?,
+        row.get::<_, String>(3)?,
+        row.get::<_, String>(4)?,
+        row.get::<_, Option<String>>(5)?,
+        row.get::<_, String>(6)?,
+    ))
+}
+
+type IncidentRow = (
+    i64,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+);
+
+fn push_incidents<I>(
+    connection: &Connection,
+    rows: I,
+    incidents: &mut Vec<NetworkIncident>,
+) -> Result<(), String>
+where
+    I: IntoIterator<Item = rusqlite::Result<IncidentRow>>,
+{
+    for row in rows {
+        let (id, status, area, started_at, last_observed_at, resolved_at, summary) =
+            row.map_err(|error| error.to_string())?;
+        incidents.push(NetworkIncident {
+            id,
+            status: NetworkIncidentStatus::from_str(&status)?,
+            area: DiagnosticArea::from_str(&area)?,
+            started_at,
+            last_observed_at,
+            resolved_at,
+            summary,
+            representative_evidence: incident_evidence(connection, id)?,
+        });
+    }
+    Ok(())
 }
 
 fn insert_evidence(
@@ -418,6 +474,27 @@ mod tests {
             EvidenceSource::Gateway
         );
         assert_ne!(incidents[0].started_at, started);
+    }
+
+    #[test]
+    fn reads_all_incidents_latest_first() {
+        let store = NetworkIncidentStore::open_in_memory().unwrap();
+        for index in 0..5 {
+            store
+                .create_incident(
+                    DiagnosticArea::GatewayOrLocal,
+                    &format!("2026-06-30T00:00:0{index}Z"),
+                    "공유기 또는 로컬 연결 구간에서 이상 근거가 반복 확인되었습니다.",
+                    &[evidence(EvidenceSource::Gateway, EvidenceStatus::Timeout)],
+                )
+                .unwrap();
+        }
+
+        let incidents = store.all_incidents().unwrap();
+
+        assert_eq!(incidents.len(), 5);
+        assert_eq!(incidents[0].started_at, "2026-06-30T00:00:04Z");
+        assert_eq!(incidents[4].started_at, "2026-06-30T00:00:00Z");
     }
 
     #[test]

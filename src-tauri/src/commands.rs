@@ -30,6 +30,15 @@ fn latest_network_incidents(
     store.recent_incidents(3)
 }
 
+fn all_network_incidents(
+    state: &NetworkIncidentHistoryState,
+) -> Result<Vec<NetworkIncident>, String> {
+    let Some(store) = &state.store else {
+        return Err("network incident history unavailable".into());
+    };
+    store.all_incidents()
+}
+
 #[tauri::command]
 pub async fn get_network_probe_snapshot(
     coordinator: tauri::State<'_, NetworkProbeCoordinator>,
@@ -52,6 +61,13 @@ pub fn get_recent_network_incidents(
     state: tauri::State<'_, NetworkIncidentHistoryState>,
 ) -> Result<Vec<NetworkIncident>, String> {
     latest_network_incidents(state.inner())
+}
+
+#[tauri::command]
+pub fn get_network_incidents(
+    state: tauri::State<'_, NetworkIncidentHistoryState>,
+) -> Result<Vec<NetworkIncident>, String> {
+    all_network_incidents(state.inner())
 }
 
 #[cfg(test)]
@@ -96,6 +112,41 @@ mod tests {
         let state = NetworkIncidentHistoryState::new(Some(store));
 
         assert_eq!(latest_network_incidents(&state).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn network_incidents_command_returns_all_incidents() {
+        let store = NetworkIncidentStore::open_in_memory().unwrap();
+        for index in 0..4 {
+            store
+                .create_incident(
+                    DiagnosticArea::External,
+                    &format!("2026-06-30T00:00:0{index}Z"),
+                    "외부 연결 구간에서 이상 근거가 반복 확인되었습니다.",
+                    &[DiagnosticEvidence {
+                        source: EvidenceSource::HttpGoogle,
+                        status: EvidenceStatus::Timeout,
+                        checked_at: Some("2026-06-30T00:00:00Z".into()),
+                        duration_ms: Some(10),
+                        detail: Some("test".into()),
+                    }],
+                )
+                .unwrap();
+        }
+
+        let state = NetworkIncidentHistoryState::new(Some(store));
+
+        assert_eq!(all_network_incidents(&state).unwrap().len(), 4);
+    }
+
+    #[test]
+    fn network_incidents_command_returns_unavailable_when_store_is_absent() {
+        let state = NetworkIncidentHistoryState::new(None);
+
+        assert_eq!(
+            all_network_incidents(&state).unwrap_err(),
+            "network incident history unavailable"
+        );
     }
 
     #[test]

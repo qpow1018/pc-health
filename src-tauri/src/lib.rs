@@ -35,6 +35,7 @@ pub fn run() {
             commands::get_network_probe_snapshot,
             commands::get_network_diagnostic_status,
             commands::get_recent_network_incidents,
+            commands::get_network_incidents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
