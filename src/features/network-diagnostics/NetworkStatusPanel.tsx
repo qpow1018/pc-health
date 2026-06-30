@@ -85,6 +85,14 @@ type PathStage = {
   evidence: DiagnosticEvidence;
 };
 
+type EvidenceDisplay = {
+  label: string;
+  tone: "normal" | "danger" | "unknown";
+  durationMs: number | null;
+  detail: string | null;
+  checkedAt: string | null;
+};
+
 function formatDuration(value: number | null) {
   return value === null ? "-" : `${value}ms`;
 }
@@ -93,6 +101,55 @@ function statusTone(status: EvidenceStatus) {
   if (status === "failure" || status === "timeout") return "danger";
   if (status === "unavailable" || status === "not_checked") return "unknown";
   return "normal";
+}
+
+function isRemoteSource(source: EvidenceSource) {
+  return (
+    source === "dns_microsoft" ||
+    source === "dns_google" ||
+    source === "http_microsoft" ||
+    source === "http_google"
+  );
+}
+
+function isStaleRemoteFailure(
+  status: NetworkDiagnosticStatus,
+  evidence: DiagnosticEvidence,
+) {
+  if (status.lifecycle !== "normal" && status.lifecycle !== "resolved") {
+    return false;
+  }
+  if (evidence.status !== "failure" && evidence.status !== "timeout") {
+    return false;
+  }
+  if (!isRemoteSource(evidence.source)) {
+    return false;
+  }
+  return evidence.checkedAt !== null && evidence.checkedAt !== status.observedAt;
+}
+
+function displayForEvidence(
+  status: NetworkDiagnosticStatus,
+  evidence: DiagnosticEvidence,
+): EvidenceDisplay {
+  if (isStaleRemoteFailure(status, evidence)) {
+    const target = evidence.source.startsWith("dns_") ? "DNS" : "외부 연결";
+    return {
+      label: "최근 전체 확인 필요",
+      tone: "unknown",
+      durationMs: null,
+      detail: `현재 기본 확인에는 ${target}를 다시 검사하지 않았습니다.`,
+      checkedAt: evidence.checkedAt,
+    };
+  }
+
+  return {
+    label: evidenceLabels[evidence.status],
+    tone: statusTone(evidence.status),
+    durationMs: evidence.durationMs,
+    detail: evidence.detail,
+    checkedAt: evidence.checkedAt,
+  };
 }
 
 function buildPathStages(evidence: DiagnosticEvidence[]): PathStage[] {
@@ -128,27 +185,28 @@ function buildPathStages(evidence: DiagnosticEvidence[]): PathStage[] {
 function EvidenceRow({
   evidence,
   label,
+  status,
   testId,
 }: {
   evidence: DiagnosticEvidence;
   label: string;
+  status: NetworkDiagnosticStatus;
   testId: string;
 }) {
+  const display = displayForEvidence(status, evidence);
   return (
     <li className={styles["evidence-row"]} data-testid={testId}>
       <span className={styles["evidence-name"]}>{label}</span>
-      <strong data-status={evidence.status}>
-        {evidenceLabels[evidence.status]}
-      </strong>
+      <strong data-tone={display.tone}>{display.label}</strong>
       <span className={styles["evidence-duration"]}>
-        {formatDuration(evidence.durationMs)}
+        {formatDuration(display.durationMs)}
       </span>
       <span className={styles["evidence-detail"]}>
-        {evidence.detail ?? "세부 정보 없음"}
+        {display.detail ?? "세부 정보 없음"}
       </span>
       <span className={styles["evidence-time"]}>
-        {evidence.checkedAt ? (
-          <time dateTime={evidence.checkedAt}>{formatTime(evidence.checkedAt)}</time>
+        {display.checkedAt ? (
+          <time dateTime={display.checkedAt}>{formatTime(display.checkedAt)}</time>
         ) : (
           "확인 시각 없음"
         )}
@@ -321,6 +379,10 @@ export default function NetworkStatusPanel() {
   const visualLifecycle =
     status.availability === "running" ? status.lifecycle : null;
   const pathStages = buildPathStages(status.evidence);
+  const displayPathStages = pathStages.map((stage) => ({
+    ...stage,
+    display: displayForEvidence(status, stage.evidence),
+  }));
   const rows = [
     {
       label: "PC/어댑터",
@@ -407,6 +469,18 @@ export default function NetworkStatusPanel() {
           </dd>
         </div>
         <div>
+          <dt>마지막 전체 확인</dt>
+          <dd>
+            {status.lastFullProbeAt ? (
+              <time dateTime={status.lastFullProbeAt}>
+                {formatTime(status.lastFullProbeAt)}
+              </time>
+            ) : (
+              "확인 시각 없음"
+            )}
+          </dd>
+        </div>
+        <div>
           <dt>판정 이유</dt>
           <dd>{reasonLabel}</dd>
         </div>
@@ -417,15 +491,15 @@ export default function NetworkStatusPanel() {
       </dl>
 
       <div className={styles["path"]} aria-label="구간별 진단 경로">
-        {pathStages.map((stage) => (
+        {displayPathStages.map((stage) => (
           <div
             className={styles["path-stage"]}
-            data-tone={statusTone(stage.evidence.status)}
+            data-tone={stage.display.tone}
             data-testid={`path-${stage.key}`}
             key={stage.key}
           >
             <span className={styles["path-label"]}>{stage.label}</span>
-            <strong>{evidenceLabels[stage.evidence.status]}</strong>
+            <strong>{stage.display.label}</strong>
           </div>
         ))}
       </div>
@@ -434,7 +508,7 @@ export default function NetworkStatusPanel() {
         <h3>최신 근거</h3>
         <ul>
           {rows.map((row) => (
-            <EvidenceRow key={row.testId} {...row} />
+            <EvidenceRow key={row.testId} status={status} {...row} />
           ))}
         </ul>
       </div>

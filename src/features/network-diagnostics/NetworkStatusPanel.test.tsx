@@ -330,6 +330,43 @@ describe("NetworkStatusPanel", () => {
     expect(screen.getByTestId("evidence-google")).toHaveTextContent("확인 불가");
   });
 
+  it("does not present stale DNS failures as current when the latest status is normal", async () => {
+    getStatusMock.mockResolvedValue({
+      ...normalStatusFixture,
+      observedAt: "2026-06-23T09:05:00Z",
+      lastFullProbeAt: "2026-06-23T09:00:00Z",
+      evidence: [
+        {
+          source: "gateway",
+          status: "success",
+          checkedAt: "2026-06-23T09:05:00Z",
+          durationMs: 3,
+          detail: "192.168.0.1 응답",
+        },
+        {
+          source: "dns_google",
+          status: "timeout",
+          checkedAt: "2026-06-23T09:00:00Z",
+          durationMs: 1000,
+          detail: "DNS timeout",
+        },
+      ],
+    });
+
+    render(<NetworkStatusPanel />);
+
+    expect(await screen.findByRole("status")).toHaveTextContent("정상");
+    expect(screen.getByTestId("path-dns")).toHaveTextContent("최근 전체 확인 필요");
+    expect(screen.getByTestId("path-dns")).not.toHaveTextContent("시간 초과");
+    expect(screen.getByTestId("evidence-dns")).toHaveTextContent(
+      "최근 전체 확인 필요",
+    );
+    expect(screen.getByTestId("evidence-dns")).toHaveTextContent(
+      "현재 기본 확인에는 DNS를 다시 검사하지 않았습니다.",
+    );
+    expect(screen.getByText("마지막 전체 확인")).toBeInTheDocument();
+  });
+
   it("shows a command error message as unavailable", async () => {
     getStatusMock.mockRejectedValue(new Error("status command failed"));
     render(<NetworkStatusPanel />);

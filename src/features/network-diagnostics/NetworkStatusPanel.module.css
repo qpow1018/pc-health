@@ -186,13 +186,16 @@
     font-size: inherit;
   }
 
-  strong[data-status="success"] {
+  strong[data-tone="normal"] {
     color: #8dbcf0;
   }
 
-  strong[data-status="failure"],
-  strong[data-status="timeout"] {
+  strong[data-tone="danger"] {
     color: #e3a4aa;
+  }
+
+  strong[data-tone="unknown"] {
+    color: #8394aa;
   }
 }
 
