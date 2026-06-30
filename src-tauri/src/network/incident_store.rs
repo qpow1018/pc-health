@@ -9,6 +9,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+const REPRESENTATIVE_EVIDENCE_LIMIT: usize = 4;
+const REPRESENTATIVE_EVIDENCE_LIMIT_SQL: i64 = 4;
+
 #[derive(Clone)]
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct NetworkIncidentStore {
@@ -24,6 +27,7 @@ impl NetworkIncidentStore {
             connection: Arc::new(Mutex::new(connection)),
         };
         store.migrate()?;
+        store.prune_probe_observations(Utc::now())?;
         Ok(store)
     }
 
@@ -107,6 +111,7 @@ impl NetworkIncidentStore {
             .map_err(|error| error.to_string())?;
         let id = transaction.last_insert_rowid();
         insert_evidence(&transaction, id, observed_at, evidence)?;
+        prune_incident_evidence(&transaction, id)?;
         transaction.commit().map_err(|error| error.to_string())?;
         Ok(id)
     }
@@ -133,14 +138,23 @@ impl NetworkIncidentStore {
                 "UPDATE network_incidents
                  SET status = ?1, area = ?2, last_observed_at = ?3, resolved_at = ?4, summary = ?5
                  WHERE id = ?6",
-                params![status.as_str(), area.as_str(), observed_at, resolved_at, summary, id],
+                params![
+                    status.as_str(),
+                    area.as_str(),
+                    observed_at,
+                    resolved_at,
+                    summary,
+                    id
+                ],
             )
             .map_err(|error| error.to_string())?;
         insert_evidence(&transaction, id, observed_at, evidence)?;
+        prune_incident_evidence(&transaction, id)?;
         transaction.commit().map_err(|error| error.to_string())
     }
 
     pub fn recent_incidents(&self, limit: usize) -> Result<Vec<NetworkIncident>, String> {
+        let limit = i64::try_from(limit).map_err(|_| "incident limit is too large".to_string())?;
         let connection = self
             .connection
             .lock()
@@ -154,7 +168,7 @@ impl NetworkIncidentStore {
             )
             .map_err(|error| error.to_string())?;
         let rows = statement
-            .query_map(params![limit as i64], |row| {
+            .query_map(params![limit], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
                     row.get::<_, String>(1)?,
@@ -232,6 +246,21 @@ impl NetworkIncidentStore {
             )
             .map_err(|error| error.to_string())
     }
+
+    #[cfg(test)]
+    pub fn incident_evidence_count(&self, incident_id: i64) -> Result<i64, String> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| "incident store lock failed".to_string())?;
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM network_incident_evidence WHERE incident_id = ?1",
+                params![incident_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())
+    }
 }
 
 fn insert_evidence(
@@ -240,8 +269,12 @@ fn insert_evidence(
     observed_at: &str,
     evidence: &[DiagnosticEvidence],
 ) -> Result<(), String> {
-    for item in evidence.iter().take(4) {
-        let duration_ms = item.duration_ms.map(|duration| duration as i64);
+    for item in evidence.iter().take(REPRESENTATIVE_EVIDENCE_LIMIT) {
+        let duration_ms = item
+            .duration_ms
+            .map(i64::try_from)
+            .transpose()
+            .map_err(|_| "evidence duration is too large".to_string())?;
         transaction
             .execute(
                 "INSERT INTO network_incident_evidence
@@ -262,6 +295,26 @@ fn insert_evidence(
     Ok(())
 }
 
+fn prune_incident_evidence(
+    transaction: &rusqlite::Transaction<'_>,
+    incident_id: i64,
+) -> Result<(), String> {
+    transaction
+        .execute(
+            "DELETE FROM network_incident_evidence
+             WHERE incident_id = ?1
+             AND id NOT IN (
+                 SELECT id FROM network_incident_evidence
+                 WHERE incident_id = ?1
+                 ORDER BY observed_at DESC, id DESC
+                 LIMIT ?2
+             )",
+            params![incident_id, REPRESENTATIVE_EVIDENCE_LIMIT_SQL],
+        )
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(not(test), allow(dead_code))]
 fn incident_evidence(
     connection: &Connection,
@@ -273,20 +326,23 @@ fn incident_evidence(
              FROM network_incident_evidence
              WHERE incident_id = ?1
              ORDER BY observed_at DESC, id DESC
-             LIMIT 4",
+             LIMIT ?2",
         )
         .map_err(|error| error.to_string())?;
     let rows = statement
-        .query_map(params![incident_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, Option<i64>>(3)?,
-                row.get::<_, Option<String>>(4)?,
-                row.get::<_, String>(5)?,
-            ))
-        })
+        .query_map(
+            params![incident_id, REPRESENTATIVE_EVIDENCE_LIMIT_SQL],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            },
+        )
         .map_err(|error| error.to_string())?;
 
     let mut evidence = Vec::new();
@@ -297,7 +353,10 @@ fn incident_evidence(
             source: EvidenceSource::from_str(&source)?,
             status: EvidenceStatus::from_str(&status)?,
             checked_at,
-            duration_ms: duration_ms.map(|duration| duration as u64),
+            duration_ms: duration_ms
+                .map(u64::try_from)
+                .transpose()
+                .map_err(|_| "stored evidence duration is negative".to_string())?,
             detail,
             observed_at,
         });
@@ -369,7 +428,10 @@ mod tests {
                 DiagnosticArea::Dns,
                 "2026-06-30T00:00:00Z",
                 "DNS에서 시간 초과 근거가 반복 확인되었습니다.",
-                &[evidence(EvidenceSource::DnsMicrosoft, EvidenceStatus::Timeout)],
+                &[evidence(
+                    EvidenceSource::DnsMicrosoft,
+                    EvidenceStatus::Timeout,
+                )],
             )
             .unwrap();
 
@@ -381,7 +443,10 @@ mod tests {
                 "2026-06-30T00:01:00Z",
                 None,
                 "DNS의 정상 근거를 추가 확인하고 있습니다.",
-                &[evidence(EvidenceSource::DnsMicrosoft, EvidenceStatus::Success)],
+                &[evidence(
+                    EvidenceSource::DnsMicrosoft,
+                    EvidenceStatus::Success,
+                )],
             )
             .unwrap();
         store
@@ -392,7 +457,10 @@ mod tests {
                 "2026-06-30T00:02:00Z",
                 Some("2026-06-30T00:02:00Z"),
                 "DNS 장애가 복구되었습니다.",
-                &[evidence(EvidenceSource::DnsMicrosoft, EvidenceStatus::Success)],
+                &[evidence(
+                    EvidenceSource::DnsMicrosoft,
+                    EvidenceStatus::Success,
+                )],
             )
             .unwrap();
 
@@ -417,7 +485,10 @@ mod tests {
                 DiagnosticArea::External,
                 &old,
                 "외부 연결 구간에서 실패 근거가 반복 확인되었습니다.",
-                &[evidence(EvidenceSource::HttpGoogle, EvidenceStatus::Failure)],
+                &[evidence(
+                    EvidenceSource::HttpGoogle,
+                    EvidenceStatus::Failure,
+                )],
             )
             .unwrap();
 
@@ -426,7 +497,10 @@ mod tests {
                 &old,
                 Some("incident"),
                 Some("external"),
-                &[evidence(EvidenceSource::HttpGoogle, EvidenceStatus::Failure)],
+                &[evidence(
+                    EvidenceSource::HttpGoogle,
+                    EvidenceStatus::Failure,
+                )],
             )
             .unwrap();
         store
@@ -434,7 +508,10 @@ mod tests {
                 &fresh,
                 Some("resolved"),
                 Some("external"),
-                &[evidence(EvidenceSource::HttpGoogle, EvidenceStatus::Success)],
+                &[evidence(
+                    EvidenceSource::HttpGoogle,
+                    EvidenceStatus::Success,
+                )],
             )
             .unwrap();
 
@@ -442,5 +519,93 @@ mod tests {
 
         assert_eq!(store.probe_observation_count().unwrap(), 1);
         assert_eq!(store.recent_incidents(3).unwrap()[0].id, incident_id);
+    }
+
+    #[test]
+    fn open_prunes_old_probe_observations_from_existing_db() {
+        let path = std::env::temp_dir().join(format!(
+            "pc-health-incident-store-{}-{}-startup.sqlite",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let now = Utc::now();
+        let old = (now - Duration::hours(25)).to_rfc3339();
+        let fresh = (now - Duration::hours(1)).to_rfc3339();
+
+        {
+            let store = NetworkIncidentStore::open(&path).unwrap();
+            store
+                .record_probe_observation(
+                    &old,
+                    Some("incident"),
+                    Some("external"),
+                    &[evidence(
+                        EvidenceSource::HttpGoogle,
+                        EvidenceStatus::Failure,
+                    )],
+                )
+                .unwrap();
+            store
+                .record_probe_observation(
+                    &fresh,
+                    Some("resolved"),
+                    Some("external"),
+                    &[evidence(
+                        EvidenceSource::HttpGoogle,
+                        EvidenceStatus::Success,
+                    )],
+                )
+                .unwrap();
+        }
+
+        let reopened = NetworkIncidentStore::open(&path).unwrap();
+
+        assert_eq!(reopened.probe_observation_count().unwrap(), 1);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn repeated_updates_keep_only_representative_evidence_bound() {
+        let store = NetworkIncidentStore::open_in_memory().unwrap();
+        let id = store
+            .create_incident(
+                DiagnosticArea::Dns,
+                "2026-06-30T00:00:00Z",
+                "DNS에서 시간 초과 근거가 반복 확인되었습니다.",
+                &[evidence(
+                    EvidenceSource::DnsMicrosoft,
+                    EvidenceStatus::Timeout,
+                )],
+            )
+            .unwrap();
+
+        for minute in 1..=6 {
+            store
+                .update_incident(
+                    id,
+                    NetworkIncidentStatus::Recovering,
+                    DiagnosticArea::Dns,
+                    &format!("2026-06-30T00:0{minute}:00Z"),
+                    None,
+                    "DNS의 정상 근거를 추가 확인하고 있습니다.",
+                    &[evidence(
+                        EvidenceSource::DnsMicrosoft,
+                        EvidenceStatus::Success,
+                    )],
+                )
+                .unwrap();
+        }
+
+        assert_eq!(store.incident_evidence_count(id).unwrap(), 4);
+        assert_eq!(
+            store.recent_incidents(3).unwrap()[0]
+                .representative_evidence
+                .len(),
+            4
+        );
     }
 }
