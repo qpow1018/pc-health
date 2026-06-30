@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -29,7 +29,7 @@ pub enum RuntimeAvailability {
     Error,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticLifecycle {
     Normal,
@@ -39,7 +39,32 @@ pub enum DiagnosticLifecycle {
     Resolved,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+impl DiagnosticLifecycle {
+    #[allow(dead_code)]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::Suspected => "suspected",
+            Self::Incident => "incident",
+            Self::Recovering => "recovering",
+            Self::Resolved => "resolved",
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "normal" => Ok(Self::Normal),
+            "suspected" => Ok(Self::Suspected),
+            "incident" => Ok(Self::Incident),
+            "recovering" => Ok(Self::Recovering),
+            "resolved" => Ok(Self::Resolved),
+            other => Err(format!("unknown diagnostic lifecycle: {other}")),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticArea {
     LocalConnection,
@@ -49,7 +74,32 @@ pub enum DiagnosticArea {
     Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+impl DiagnosticArea {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::LocalConnection => "local_connection",
+            Self::GatewayOrLocal => "gateway_or_local",
+            Self::Dns => "dns",
+            Self::External => "external",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "local_connection" => Ok(Self::LocalConnection),
+            "gateway_or_local" => Ok(Self::GatewayOrLocal),
+            "dns" => Ok(Self::Dns),
+            "external" => Ok(Self::External),
+            "unknown" => Ok(Self::Unknown),
+            other => Err(format!("unknown diagnostic area: {other}")),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceSource {
     Ethernet,
@@ -62,7 +112,38 @@ pub enum EvidenceSource {
     HttpGoogle,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+impl EvidenceSource {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ethernet => "ethernet",
+            Self::Ipv4 => "ipv4",
+            Self::DefaultRoute => "default_route",
+            Self::Gateway => "gateway",
+            Self::DnsMicrosoft => "dns_microsoft",
+            Self::DnsGoogle => "dns_google",
+            Self::HttpMicrosoft => "http_microsoft",
+            Self::HttpGoogle => "http_google",
+        }
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "ethernet" => Ok(Self::Ethernet),
+            "ipv4" => Ok(Self::Ipv4),
+            "default_route" => Ok(Self::DefaultRoute),
+            "gateway" => Ok(Self::Gateway),
+            "dns_microsoft" => Ok(Self::DnsMicrosoft),
+            "dns_google" => Ok(Self::DnsGoogle),
+            "http_microsoft" => Ok(Self::HttpMicrosoft),
+            "http_google" => Ok(Self::HttpGoogle),
+            other => Err(format!("unknown evidence source: {other}")),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceStatus {
     Success,
@@ -72,7 +153,32 @@ pub enum EvidenceStatus {
     NotChecked,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+impl EvidenceStatus {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::Failure => "failure",
+            Self::Timeout => "timeout",
+            Self::Unavailable => "unavailable",
+            Self::NotChecked => "not_checked",
+        }
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "success" => Ok(Self::Success),
+            "failure" => Ok(Self::Failure),
+            "timeout" => Ok(Self::Timeout),
+            "unavailable" => Ok(Self::Unavailable),
+            "not_checked" => Ok(Self::NotChecked),
+            other => Err(format!("unknown evidence status: {other}")),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticEvidence {
     pub source: EvidenceSource,
@@ -106,6 +212,62 @@ impl NetworkDiagnosticStatus {
             error: None,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(test), allow(dead_code))]
+pub enum NetworkIncidentStatus {
+    Ongoing,
+    Recovering,
+    Resolved,
+}
+
+impl NetworkIncidentStatus {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ongoing => "ongoing",
+            Self::Recovering => "recovering",
+            Self::Resolved => "resolved",
+        }
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "ongoing" => Ok(Self::Ongoing),
+            "recovering" => Ok(Self::Recovering),
+            "resolved" => Ok(Self::Resolved),
+            other => Err(format!("unknown incident status: {other}")),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(test), allow(dead_code))]
+pub struct NetworkIncidentEvidence {
+    pub source: EvidenceSource,
+    pub status: EvidenceStatus,
+    pub checked_at: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub detail: Option<String>,
+    pub observed_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(test), allow(dead_code))]
+pub struct NetworkIncident {
+    pub id: i64,
+    pub status: NetworkIncidentStatus,
+    pub area: DiagnosticArea,
+    pub started_at: String,
+    pub last_observed_at: String,
+    pub resolved_at: Option<String>,
+    pub summary: String,
+    pub representative_evidence: Vec<NetworkIncidentEvidence>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
