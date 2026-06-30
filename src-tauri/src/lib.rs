@@ -21,14 +21,13 @@ pub fn run() {
             let recorder = incident_store.as_ref().map(|store| {
                 network::incident_recorder::NetworkIncidentRecorder::new(store.clone())
             });
+            let incident_history_state = commands::NetworkIncidentHistoryState::new(incident_store);
             let runtime = network::runtime::NetworkDiagnosticsRuntime::platform(
                 coordinator.clone(),
                 recorder,
             );
             app.manage(coordinator);
-            if let Some(store) = incident_store {
-                app.manage(store);
-            }
+            app.manage(incident_history_state);
             app.manage(runtime);
             Ok(())
         })

@@ -5,13 +5,28 @@ use crate::network::{
     service::NetworkProbeCoordinator,
 };
 
+pub struct NetworkIncidentHistoryState {
+    store: Option<NetworkIncidentStore>,
+}
+
+impl NetworkIncidentHistoryState {
+    pub fn new(store: Option<NetworkIncidentStore>) -> Self {
+        Self { store }
+    }
+}
+
 fn clone_diagnostic_status(
     runtime: &NetworkDiagnosticsRuntime,
 ) -> Result<NetworkDiagnosticStatus, String> {
     runtime.status()
 }
 
-fn latest_network_incidents(store: &NetworkIncidentStore) -> Result<Vec<NetworkIncident>, String> {
+fn latest_network_incidents(
+    state: &NetworkIncidentHistoryState,
+) -> Result<Vec<NetworkIncident>, String> {
+    let Some(store) = &state.store else {
+        return Err("network incident history unavailable".into());
+    };
     store.recent_incidents(3)
 }
 
@@ -34,9 +49,9 @@ pub fn get_network_diagnostic_status(
 
 #[tauri::command]
 pub fn get_recent_network_incidents(
-    store: tauri::State<'_, NetworkIncidentStore>,
+    state: tauri::State<'_, NetworkIncidentHistoryState>,
 ) -> Result<Vec<NetworkIncident>, String> {
-    latest_network_incidents(store.inner())
+    latest_network_incidents(state.inner())
 }
 
 #[cfg(test)]
@@ -78,6 +93,18 @@ mod tests {
                 .unwrap();
         }
 
-        assert_eq!(latest_network_incidents(&store).unwrap().len(), 3);
+        let state = NetworkIncidentHistoryState::new(Some(store));
+
+        assert_eq!(latest_network_incidents(&state).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn recent_incidents_command_returns_unavailable_when_store_is_absent() {
+        let state = NetworkIncidentHistoryState::new(None);
+
+        assert_eq!(
+            latest_network_incidents(&state).unwrap_err(),
+            "network incident history unavailable"
+        );
     }
 }
