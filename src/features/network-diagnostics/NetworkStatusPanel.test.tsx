@@ -144,6 +144,53 @@ describe("NetworkStatusPanel", () => {
     expect(await screen.findByText(label)).toBeInTheDocument();
   });
 
+  it.each([
+    ["normal", null, "현재 확인된 구간에서 반복 이상이 없습니다."],
+    [
+      "suspected",
+      "gateway_or_local",
+      "이상이 감지됐지만 장애로 확정하려면 추가 근거가 필요합니다.",
+    ],
+    [
+      "incident",
+      "gateway_or_local",
+      "호환되는 이상이 반복 확인되었습니다.",
+    ],
+    [
+      "recovering",
+      "gateway_or_local",
+      "정상 근거가 확인되어 추가 확인 중입니다.",
+    ],
+    ["resolved", null, "현재 연결은 복구된 상태입니다."],
+  ] as const)("shows direct summary copy for %s", async (
+    lifecycle,
+    suspectedArea,
+    description,
+  ) => {
+    getStatusMock.mockResolvedValue({
+      ...normalStatusFixture,
+      lifecycle,
+      suspectedArea,
+    });
+
+    render(<NetworkStatusPanel />);
+
+    expect(await screen.findByText(description)).toBeInTheDocument();
+  });
+
+  it("shows quiet unavailable summary copy without claiming an outage", async () => {
+    getStatusMock.mockResolvedValue(unavailableStatusFixture);
+
+    render(<NetworkStatusPanel />);
+
+    expect(
+      await screen.findByText(
+        "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("호환되는 이상이 반복 확인되었습니다.")).not.toBeInTheDocument();
+  });
+
   it("shows incident area and evidence without claiming an exact device cause", async () => {
     getStatusMock.mockResolvedValue(incidentStatusFixture);
     render(<NetworkStatusPanel />);

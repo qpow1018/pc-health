@@ -134,6 +134,30 @@ function areaLabelForStatus(status: NetworkDiagnosticStatus) {
   return "확인 불가";
 }
 
+function descriptionForStatus(status: NetworkDiagnosticStatus) {
+  if (status.availability !== "running" || !status.lifecycle) {
+    return "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.";
+  }
+
+  if (status.lifecycle === "normal") {
+    return "현재 확인된 구간에서 반복 이상이 없습니다.";
+  }
+
+  if (status.lifecycle === "suspected") {
+    return "이상이 감지됐지만 장애로 확정하려면 추가 근거가 필요합니다.";
+  }
+
+  if (status.lifecycle === "incident") {
+    return "호환되는 이상이 반복 확인되었습니다.";
+  }
+
+  if (status.lifecycle === "recovering") {
+    return "정상 근거가 확인되어 추가 확인 중입니다.";
+  }
+
+  return "현재 연결은 복구된 상태입니다.";
+}
+
 export default function NetworkStatusPanel() {
   const [available] = useState(canUseNetworkDiagnostics);
   const [status, setStatus] = useState<NetworkDiagnosticStatus>(
@@ -177,6 +201,7 @@ export default function NetworkStatusPanel() {
         ? "확인 불가"
         : lifecycleLabels[status.lifecycle];
   const areaLabel = areaLabelForStatus(status);
+  const statusDescription = descriptionForStatus(status);
   const visualLifecycle =
     status.availability === "running" ? status.lifecycle : null;
   const rows = [
@@ -235,6 +260,7 @@ export default function NetworkStatusPanel() {
           {status.error.message}
         </p>
       )}
+      <p className={styles["status-description"]}>{statusDescription}</p>
 
       <dl className={styles["summary"]}>
         <div>
