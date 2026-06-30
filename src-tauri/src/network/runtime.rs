@@ -1,5 +1,6 @@
 use super::{
     domain::{NetworkDiagnosticStatus, RuntimeAvailability},
+    incident_recorder::NetworkIncidentRecorder,
     service::NetworkProbeCoordinator,
 };
 use std::{
@@ -11,7 +12,6 @@ use std::{
 use super::{
     collector::{GOOGLE_URL, MICROSOFT_URL},
     domain::{DiagnosticArea, DiagnosticLifecycle},
-    incident_recorder::NetworkIncidentRecorder,
     observation::assess,
     state_machine::NetworkDiagnosticStateMachine,
 };
@@ -135,13 +135,19 @@ pub struct NetworkDiagnosticsRuntime {
 #[cfg_attr(not(test), allow(dead_code))]
 impl NetworkDiagnosticsRuntime {
     #[cfg(target_os = "windows")]
-    pub fn platform(coordinator: NetworkProbeCoordinator) -> Self {
+    pub fn platform(
+        coordinator: NetworkProbeCoordinator,
+        recorder: NetworkIncidentRecorder,
+    ) -> Self {
         let (wait, stop) = SystemWait::new();
-        Self::start(coordinator, wait, stop, None)
+        Self::start(coordinator, wait, stop, Some(recorder))
     }
 
     #[cfg(not(target_os = "windows"))]
-    pub fn platform(_coordinator: NetworkProbeCoordinator) -> Self {
+    pub fn platform(
+        _coordinator: NetworkProbeCoordinator,
+        _recorder: NetworkIncidentRecorder,
+    ) -> Self {
         Self::unavailable()
     }
 
@@ -379,8 +385,8 @@ mod tests {
     use crate::network::{
         collector::{NetworkCollector, NetworkInventory},
         domain::{
-            AdapterSnapshot, DnsCheck, GatewayCheck, HttpCheck, ProbeError, ProbeStatus,
-            RouteSnapshot,
+            AdapterSnapshot, DnsCheck, GatewayCheck, HttpCheck, NetworkIncidentStatus, ProbeError,
+            ProbeStatus, RouteSnapshot,
         },
         incident_recorder::NetworkIncidentRecorder,
         incident_store::NetworkIncidentStore,
@@ -937,6 +943,30 @@ mod tests {
         assert!(status.error.is_none());
     }
 
+    #[test]
+    fn supplied_recorder_persists_worker_observations_and_incidents() {
+        let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
+        let store = NetworkIncidentStore::open_in_memory().unwrap();
+        let recorder = NetworkIncidentRecorder::new(store.clone());
+
+        run_worker(
+            coordinator(RecordingCollector::scenario(Scenario::Gateway)),
+            ScriptedWait::elapsed(1),
+            latest.clone(),
+            Some(recorder),
+        );
+
+        let status = latest.read().unwrap();
+        assert_eq!(status.availability, RuntimeAvailability::Running);
+        assert_eq!(status.lifecycle, Some(DiagnosticLifecycle::Incident));
+        assert_eq!(store.probe_observation_count().unwrap(), 3);
+
+        let incidents = store.recent_incidents(3).unwrap();
+        assert_eq!(incidents.len(), 1);
+        assert_eq!(incidents[0].status, NetworkIncidentStatus::Ongoing);
+        assert_eq!(incidents[0].area, DiagnosticArea::GatewayOrLocal);
+    }
+
     #[cfg(not(target_os = "windows"))]
     #[test]
     fn unavailable_runtime_starts_no_worker() {
@@ -949,6 +979,7 @@ mod tests {
 
         let platform = NetworkDiagnosticsRuntime::platform(
             NetworkProbeCoordinator::failed_for_test("must not collect"),
+            NetworkIncidentRecorder::new(NetworkIncidentStore::open_in_memory().unwrap()),
         );
         assert_eq!(
             platform.status().unwrap().availability,
