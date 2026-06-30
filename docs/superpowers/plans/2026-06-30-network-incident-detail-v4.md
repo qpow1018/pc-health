@@ -58,6 +58,20 @@ import {
 } from "./fixture";
 ```
 
+Replace the existing v3 test named `does not render row links or detail actions` with this v4-safe version:
+
+```tsx
+  it("does not render row links before or after selecting a detail", async () => {
+    getIncidentsMock.mockResolvedValue([ongoingIncidentFixture]);
+
+    render(<NetworkIncidentHistoryPage onBack={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "상세 보기" }));
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+```
+
 Append these tests inside the existing `describe("NetworkIncidentHistoryPage", () => { ... })` block:
 
 ```tsx
