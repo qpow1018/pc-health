@@ -45,3 +45,10 @@ export const unknownIncidentFixture: NetworkIncident = {
   area: "unknown",
   summary: "확인 불가 구간에서 이상 근거가 반복 확인되었습니다.",
 };
+
+export const incidentWithoutEvidenceFixture: NetworkIncident = {
+  ...resolvedIncidentFixture,
+  id: 5,
+  representativeEvidence: [],
+  summary: "대표 근거가 없는 저장 기록입니다.",
+};

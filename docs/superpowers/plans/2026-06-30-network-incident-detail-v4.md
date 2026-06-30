@@ -219,8 +219,8 @@ const evidenceStatusLabels: Record<EvidenceStatus, string> = {
   success: "성공",
   failure: "실패",
   timeout: "시간 초과",
+  unavailable: "확인 불가",
   not_checked: "확인하지 않음",
-  unsupported: "확인 불가",
 };
 ```
 

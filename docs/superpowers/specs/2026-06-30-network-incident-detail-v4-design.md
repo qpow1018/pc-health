@@ -135,10 +135,10 @@ status는 기존 evidence status를 사용자 문구로 변환한다.
 - `success`: 성공
 - `failure`: 실패
 - `timeout`: 시간 초과
+- `unavailable`: 확인 불가
 - `not_checked`: 확인하지 않음
-- `unsupported`: 확인 불가
 
-`unsupported`, `not_checked`, missing time은 성공처럼 보이지 않게 muted 처리한다.
+`unavailable`, `not_checked`, missing time은 성공처럼 보이지 않게 muted 처리한다.
 
 ## 데이터 흐름
 
@@ -168,7 +168,7 @@ status는 기존 evidence status를 사용자 문구로 변환한다.
 - 큰 hero, modal, drawer, 새 design system을 만들지 않는다.
 - 목록과 상세는 dense하지만 안정적인 행 구조를 유지한다.
 - 상세 패널은 반복 item card가 아니라 선택된 incident의 정보 panel로 둔다.
-- unknown, unsupported, missing time은 muted tone으로 표시한다.
+- unknown, unavailable, missing time은 muted tone으로 표시한다.
 - 모바일 폭에서는 목록과 상세가 한 열로 접히며 텍스트가 겹치지 않아야 한다.
 
 ## 테스트

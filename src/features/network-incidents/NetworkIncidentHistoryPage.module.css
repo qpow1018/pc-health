@@ -83,7 +83,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 100px 150px 160px 160px 90px minmax(220px, 1fr);
+  grid-template-columns: 86px 132px 150px 150px 82px minmax(180px, 1fr) 84px;
   gap: 12px;
   align-items: center;
   min-height: 42px;
@@ -105,9 +105,136 @@
   color: #c3d0df;
 }
 
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 18px;
+  align-items: start;
+}
+
+.row-selected {
+  background: #142033;
+}
+
+.detail-button,
+.close-button {
+  border: 1px solid #304563;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: #d7e1ee;
+  background: #0d1522;
+  cursor: pointer;
+}
+
+.detail-button[aria-pressed="true"] {
+  border-color: #79b8ff;
+  color: #f4f8ff;
+}
+
+.detail {
+  border: 1px solid #304563;
+  border-radius: 10px;
+  padding: 16px;
+  background: #0d1522;
+}
+
+.detail-header {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.detail-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.detail-summary div {
+  display: grid;
+  gap: 3px;
+}
+
+.detail-summary dt {
+  color: #8394aa;
+  font-size: 0.72rem;
+}
+
+.detail-summary dd {
+  margin: 0;
+  color: #d7e1ee;
+  font-size: 0.82rem;
+}
+
+.detail-summary-text {
+  margin: 14px 0 0;
+  color: #c3d0df;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.evidence-section {
+  margin-top: 16px;
+}
+
+.evidence-section h3 {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.evidence-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidence-row {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid #263b57;
+  padding-top: 10px;
+  color: #9fb0c8;
+  font-size: 0.76rem;
+}
+
+.evidence-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.evidence-row strong {
+  color: #f4f8ff;
+}
+
+.evidence-row p {
+  margin: 0;
+  color: #c3d0df;
+}
+
+.selection-hint {
+  margin: 0;
+  border: 1px dashed #304563;
+  border-radius: 10px;
+  padding: 16px;
+  color: #9fb0c8;
+  background: #0d1522;
+}
+
 @media (max-width: 820px) {
   .filters,
-  .row {
+  .content,
+  .row,
+  .detail-summary {
     grid-template-columns: 1fr;
   }
 
