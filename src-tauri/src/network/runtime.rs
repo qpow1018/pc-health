@@ -137,16 +137,16 @@ impl NetworkDiagnosticsRuntime {
     #[cfg(target_os = "windows")]
     pub fn platform(
         coordinator: NetworkProbeCoordinator,
-        recorder: NetworkIncidentRecorder,
+        recorder: Option<NetworkIncidentRecorder>,
     ) -> Self {
         let (wait, stop) = SystemWait::new();
-        Self::start(coordinator, wait, stop, Some(recorder))
+        Self::start(coordinator, wait, stop, recorder)
     }
 
     #[cfg(not(target_os = "windows"))]
     pub fn platform(
         _coordinator: NetworkProbeCoordinator,
-        _recorder: NetworkIncidentRecorder,
+        _recorder: Option<NetworkIncidentRecorder>,
     ) -> Self {
         Self::unavailable()
     }
@@ -979,7 +979,9 @@ mod tests {
 
         let platform = NetworkDiagnosticsRuntime::platform(
             NetworkProbeCoordinator::failed_for_test("must not collect"),
-            NetworkIncidentRecorder::new(NetworkIncidentStore::open_in_memory().unwrap()),
+            Some(NetworkIncidentRecorder::new(
+                NetworkIncidentStore::open_in_memory().unwrap(),
+            )),
         );
         assert_eq!(
             platform.status().unwrap().availability,
