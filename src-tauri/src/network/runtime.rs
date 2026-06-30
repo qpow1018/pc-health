@@ -21,9 +21,9 @@ use std::{
 };
 
 #[cfg(any(target_os = "windows", test))]
-const BASELINE_INTERVAL: Duration = Duration::from_secs(10);
+const BASELINE_INTERVAL: Duration = Duration::from_secs(20);
 #[cfg(any(target_os = "windows", test))]
-const EXTERNAL_INTERVAL: Duration = Duration::from_secs(20);
+const EXTERNAL_INTERVAL: Duration = Duration::from_secs(30);
 #[cfg(any(target_os = "windows", test))]
 const INITIAL_EXTERNAL_DELAY: Duration = Duration::from_secs(40);
 #[cfg(any(target_os = "windows", test))]
@@ -678,11 +678,11 @@ mod tests {
             vec![
                 ProbeRequest::Full,
                 ProbeRequest::Baseline(None),
-                ProbeRequest::Baseline(None),
-                ProbeRequest::Baseline(None),
                 ProbeRequest::Baseline(Some(MICROSOFT_URL)),
                 ProbeRequest::Baseline(None),
                 ProbeRequest::Baseline(Some(GOOGLE_URL)),
+                ProbeRequest::Baseline(None),
+                ProbeRequest::Baseline(Some(MICROSOFT_URL)),
             ]
         );
     }
@@ -699,8 +699,9 @@ mod tests {
                 (request == ProbeRequest::Focused).then_some(elapsed.as_secs())
             })
             .collect();
-        // The startup full is the first assessment; focused runs at t=0 and t=30.
-        assert_eq!(focused_at, vec![0, 30]);
+        // The startup full is the first assessment; follow-up focused probes wait for
+        // the cooldown and run on the next baseline boundary.
+        assert_eq!(focused_at, vec![0, 40, 80]);
     }
 
     #[test]
@@ -724,6 +725,7 @@ mod tests {
             vec![
                 ProbeRequest::Baseline(Some(MICROSOFT_URL)),
                 ProbeRequest::Baseline(Some(GOOGLE_URL)),
+                ProbeRequest::Baseline(Some(MICROSOFT_URL)),
             ]
         );
     }
@@ -737,7 +739,7 @@ mod tests {
                     (request == ProbeRequest::Focused).then_some(elapsed.as_secs())
                 })
                 .collect();
-            assert_eq!(focused_at, vec![0, 30]);
+            assert_eq!(focused_at, vec![0, 40, 80]);
         }
         for scenario in [Scenario::Local, Scenario::Gateway] {
             let focused_at: Vec<_> = run_requests(RecordingCollector::scenario(scenario), 4)
@@ -836,7 +838,7 @@ mod tests {
                 matches!(request, ProbeRequest::Baseline(_)).then_some(*elapsed)
             })
             .unwrap();
-        assert_eq!(first_baseline_at, Duration::from_secs(35));
+        assert_eq!(first_baseline_at, Duration::from_secs(45));
         assert_eq!(maximum.load(Ordering::SeqCst), 1);
     }
 
@@ -873,9 +875,9 @@ mod tests {
                 .sum::<usize>()
         };
 
-        assert_eq!(http_requests(&normal), 180);
-        assert_eq!(endpoint_requests(&normal, MICROSOFT_URL), 90);
-        assert_eq!(endpoint_requests(&normal, GOOGLE_URL), 90);
+        assert_eq!(http_requests(&normal), 91);
+        assert_eq!(endpoint_requests(&normal, MICROSOFT_URL), 46);
+        assert_eq!(endpoint_requests(&normal, GOOGLE_URL), 45);
         assert!(http_requests(&persistent) <= 420);
     }
 
