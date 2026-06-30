@@ -184,10 +184,10 @@ describe("NetworkStatusPanel", () => {
     render(<NetworkStatusPanel />);
 
     expect(
-      await screen.findByText(
+      await screen.findAllByText(
         "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.",
       ),
-    ).toBeInTheDocument();
+    ).toHaveLength(2);
     expect(screen.queryByText("호환되는 이상이 반복 확인되었습니다.")).not.toBeInTheDocument();
   });
 
@@ -203,12 +203,36 @@ describe("NetworkStatusPanel", () => {
     expect(screen.queryByText(/케이블|포트|NIC/)).not.toBeInTheDocument();
   });
 
+  it("shows a bounded reason and progress state for confirmed incidents", async () => {
+    getStatusMock.mockResolvedValue(incidentStatusFixture);
+    render(<NetworkStatusPanel />);
+
+    expect(
+      await screen.findByText(
+        "공유기 또는 로컬 연결 구간에서 시간 초과 근거가 반복 확인되었습니다.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("장애 근거 확인됨")).toBeInTheDocument();
+    expect(screen.queryByText(/공유기 고장|케이블 불량|자동 복구/)).not.toBeInTheDocument();
+  });
+
+  it("shows a waiting progress state before the first observation", () => {
+    render(<NetworkStatusPanel />);
+
+    expect(screen.getByText("첫 확인 대기")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다."),
+    ).toHaveLength(2);
+  });
+
   it("shows the observation and latest evidence timestamps and details", async () => {
     getStatusMock.mockResolvedValue(normalStatusFixture);
     render(<NetworkStatusPanel />);
 
     expect(await screen.findByText("정상")).toBeInTheDocument();
     expectAreaLabel("해당 없음");
+    expect(screen.getByText("최근 확인된 주요 구간이 정상입니다.")).toBeInTheDocument();
+    expect(screen.getByText("기본 확인 완료")).toBeInTheDocument();
     expect(screen.getByText("192.168.0.1 응답")).toBeInTheDocument();
     expect(screen.getByText("connecttest.txt 응답 일치")).toBeInTheDocument();
     expect(screen.getByText("HTTP 204")).toBeInTheDocument();

@@ -183,6 +183,24 @@ function areaLabelForStatus(status: NetworkDiagnosticStatus) {
   return "확인 불가";
 }
 
+function evidenceForArea(status: NetworkDiagnosticStatus) {
+  if (!status.suspectedArea || status.suspectedArea === "unknown") return null;
+
+  if (status.suspectedArea === "local_connection") {
+    return latestEvidence(status.evidence, ["ethernet", "ipv4", "default_route"]);
+  }
+
+  if (status.suspectedArea === "gateway_or_local") {
+    return latestEvidence(status.evidence, ["gateway"]);
+  }
+
+  if (status.suspectedArea === "dns") {
+    return latestEvidence(status.evidence, ["dns_microsoft", "dns_google"]);
+  }
+
+  return latestEvidence(status.evidence, ["http_microsoft", "http_google"]);
+}
+
 function descriptionForStatus(status: NetworkDiagnosticStatus) {
   if (status.availability !== "running" || !status.lifecycle) {
     return "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.";
@@ -205,6 +223,53 @@ function descriptionForStatus(status: NetworkDiagnosticStatus) {
   }
 
   return "현재 연결은 복구된 상태입니다.";
+}
+
+function reasonForStatus(status: NetworkDiagnosticStatus) {
+  if (status.availability !== "running" || !status.lifecycle) {
+    return "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.";
+  }
+
+  if (status.lifecycle === "normal") {
+    return "최근 확인된 주요 구간이 정상입니다.";
+  }
+
+  if (status.lifecycle === "resolved") {
+    return "이전 장애가 복구된 뒤 현재 확인은 정상입니다.";
+  }
+
+  const evidence = evidenceForArea(status);
+  if (!status.suspectedArea || status.suspectedArea === "unknown" || !evidence) {
+    return "근거가 부족하거나 서로 충돌해 원인 구간을 확정하지 않았습니다.";
+  }
+
+  const areaLabel = areaLabels[status.suspectedArea];
+  const evidenceLabel = evidenceLabels[evidence.status];
+
+  if (status.lifecycle === "incident") {
+    return `${areaLabel}에서 ${evidenceLabel} 근거가 반복 확인되었습니다.`;
+  }
+
+  if (status.lifecycle === "recovering") {
+    return `${areaLabel}의 정상 근거를 추가 확인하고 있습니다.`;
+  }
+
+  return `${areaLabel}에서 ${evidenceLabel} 근거가 있어 추가 확인 중입니다.`;
+}
+
+function progressForStatus(status: NetworkDiagnosticStatus) {
+  if (status.availability === "starting") return "첫 확인 대기";
+  if (status.availability === "unavailable") return "진단 사용 불가";
+  if (status.availability === "error") return "진단 상태 확인 실패";
+  if (!status.lifecycle) return "확인 상태 없음";
+
+  if (status.lifecycle === "normal" || status.lifecycle === "resolved") {
+    return "기본 확인 완료";
+  }
+
+  if (status.lifecycle === "suspected") return "추가 근거 확인 중";
+  if (status.lifecycle === "incident") return "장애 근거 확인됨";
+  return "복구 근거 확인 중";
 }
 
 export default function NetworkStatusPanel() {
@@ -251,6 +316,8 @@ export default function NetworkStatusPanel() {
         : lifecycleLabels[status.lifecycle];
   const areaLabel = areaLabelForStatus(status);
   const statusDescription = descriptionForStatus(status);
+  const reasonLabel = reasonForStatus(status);
+  const progressLabel = progressForStatus(status);
   const visualLifecycle =
     status.availability === "running" ? status.lifecycle : null;
   const pathStages = buildPathStages(status.evidence);
@@ -338,6 +405,14 @@ export default function NetworkStatusPanel() {
               "확인 시각 없음"
             )}
           </dd>
+        </div>
+        <div>
+          <dt>판정 이유</dt>
+          <dd>{reasonLabel}</dd>
+        </div>
+        <div>
+          <dt>확인 상태</dt>
+          <dd>{progressLabel}</dd>
         </div>
       </dl>
 
