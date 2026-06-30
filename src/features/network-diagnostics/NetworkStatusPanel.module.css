@@ -132,6 +132,11 @@
 
 .path-stage[data-tone="unknown"] {
   color: #8394aa;
+
+  .path-label,
+  strong {
+    color: #8394aa;
+  }
 }
 
 .path-label {
