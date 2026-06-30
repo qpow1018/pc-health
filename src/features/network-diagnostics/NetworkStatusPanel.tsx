@@ -75,8 +75,54 @@ function latestEvidence(
     const priorityDifference =
       evidencePriority[item.status] - evidencePriority[selected.status];
     if (priorityDifference !== 0) return priorityDifference > 0 ? item : selected;
-    return (item.checkedAt ?? "") > (selected.checkedAt ?? "") ? item : selected;
+    return (item.checkedAt ?? "") >= (selected.checkedAt ?? "") ? item : selected;
   });
+}
+
+type PathStage = {
+  key: string;
+  label: string;
+  evidence: DiagnosticEvidence;
+};
+
+function formatDuration(value: number | null) {
+  return value === null ? "-" : `${value}ms`;
+}
+
+function statusTone(status: EvidenceStatus) {
+  if (status === "failure" || status === "timeout") return "danger";
+  if (status === "unavailable" || status === "not_checked") return "unknown";
+  return "normal";
+}
+
+function buildPathStages(evidence: DiagnosticEvidence[]): PathStage[] {
+  return [
+    {
+      key: "pc",
+      label: "PC/어댑터",
+      evidence: latestEvidence(evidence, ["ethernet"]),
+    },
+    {
+      key: "route",
+      label: "IPv4/Route",
+      evidence: latestEvidence(evidence, ["ipv4", "default_route"]),
+    },
+    {
+      key: "gateway",
+      label: "게이트웨이",
+      evidence: latestEvidence(evidence, ["gateway"]),
+    },
+    {
+      key: "dns",
+      label: "DNS",
+      evidence: latestEvidence(evidence, ["dns_microsoft", "dns_google"]),
+    },
+    {
+      key: "external",
+      label: "외부 연결",
+      evidence: latestEvidence(evidence, ["http_microsoft", "http_google"]),
+    },
+  ];
 }
 
 function EvidenceRow({
@@ -94,6 +140,9 @@ function EvidenceRow({
       <strong data-status={evidence.status}>
         {evidenceLabels[evidence.status]}
       </strong>
+      <span className={styles["evidence-duration"]}>
+        {formatDuration(evidence.durationMs)}
+      </span>
       <span className={styles["evidence-detail"]}>
         {evidence.detail ?? "세부 정보 없음"}
       </span>
@@ -204,7 +253,18 @@ export default function NetworkStatusPanel() {
   const statusDescription = descriptionForStatus(status);
   const visualLifecycle =
     status.availability === "running" ? status.lifecycle : null;
+  const pathStages = buildPathStages(status.evidence);
   const rows = [
+    {
+      label: "PC/어댑터",
+      testId: "evidence-pc",
+      evidence: latestEvidence(status.evidence, ["ethernet"]),
+    },
+    {
+      label: "IPv4/Route",
+      testId: "evidence-route",
+      evidence: latestEvidence(status.evidence, ["ipv4", "default_route"]),
+    },
     {
       label: "게이트웨이",
       testId: "evidence-gateway",
@@ -280,6 +340,20 @@ export default function NetworkStatusPanel() {
           </dd>
         </div>
       </dl>
+
+      <div className={styles["path"]} aria-label="구간별 진단 경로">
+        {pathStages.map((stage) => (
+          <div
+            className={styles["path-stage"]}
+            data-tone={statusTone(stage.evidence.status)}
+            data-testid={`path-${stage.key}`}
+            key={stage.key}
+          >
+            <span className={styles["path-label"]}>{stage.label}</span>
+            <strong>{evidenceLabels[stage.evidence.status]}</strong>
+          </div>
+        ))}
+      </div>
 
       <div className={styles["evidence"]}>
         <h3>최신 근거</h3>

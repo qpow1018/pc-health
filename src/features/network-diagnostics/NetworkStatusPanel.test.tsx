@@ -220,6 +220,44 @@ describe("NetworkStatusPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the diagnostic path from PC to external connectivity", async () => {
+    getStatusMock.mockResolvedValue(incidentStatusFixture);
+
+    render(<NetworkStatusPanel />);
+
+    expect(await screen.findByLabelText("구간별 진단 경로")).toBeInTheDocument();
+    expect(screen.getByTestId("path-pc")).toHaveTextContent("PC/어댑터");
+    expect(screen.getByTestId("path-pc")).toHaveTextContent("확인하지 않음");
+    expect(screen.getByTestId("path-route")).toHaveTextContent("IPv4/Route");
+    expect(screen.getByTestId("path-gateway")).toHaveTextContent("게이트웨이");
+    expect(screen.getByTestId("path-gateway")).toHaveTextContent("시간 초과");
+    expect(screen.getByTestId("path-dns")).toHaveTextContent("DNS");
+    expect(screen.getByTestId("path-external")).toHaveTextContent("외부 연결");
+  });
+
+  it("renders latest evidence rows for PC, route, gateway, DNS, Microsoft and Google", async () => {
+    getStatusMock.mockResolvedValue(normalStatusFixture);
+
+    render(<NetworkStatusPanel />);
+
+    await screen.findByText("정상");
+    for (const testId of [
+      "evidence-pc",
+      "evidence-route",
+      "evidence-gateway",
+      "evidence-dns",
+      "evidence-microsoft",
+      "evidence-google",
+    ]) {
+      expect(screen.getByTestId(testId)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("evidence-pc")).toHaveTextContent("Ethernet adapter 감지");
+    expect(screen.getByTestId("evidence-route")).toHaveTextContent("default route 선택됨");
+    expect(screen.getByTestId("evidence-gateway")).toHaveTextContent("3ms");
+    expect(screen.getByTestId("evidence-dns")).toHaveTextContent("5ms");
+    expect(screen.queryByText("network health score")).not.toBeInTheDocument();
+  });
+
   it("announces polling changes as a polite atomic status", async () => {
     getStatusMock.mockResolvedValue(normalStatusFixture);
     render(<NetworkStatusPanel />);
@@ -238,10 +276,14 @@ describe("NetworkStatusPanel", () => {
     render(<NetworkStatusPanel />);
 
     await screen.findByText("정상");
-    for (const name of ["게이트웨이", "DNS", "Microsoft", "Google"]) {
-      expect(screen.getByText(name)).toBeInTheDocument();
+    for (const testId of [
+      "evidence-gateway",
+      "evidence-dns",
+      "evidence-microsoft",
+      "evidence-google",
+    ]) {
+      expect(screen.getByTestId(testId)).toHaveTextContent("확인하지 않음");
     }
-    expect(screen.getAllByText("확인하지 않음")).toHaveLength(4);
   });
 
   it("maps evidence outcomes to direct Korean text and aggregates DNS conservatively", async () => {

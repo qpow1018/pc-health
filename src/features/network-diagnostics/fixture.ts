@@ -18,6 +18,27 @@ export const normalStatusFixture: NetworkDiagnosticStatus = {
   lastFullProbeAt: "2026-06-23T09:00:00Z",
   evidence: [
     {
+      source: "ethernet",
+      status: "success",
+      checkedAt: "2026-06-23T09:00:00Z",
+      durationMs: null,
+      detail: "Ethernet adapter 감지",
+    },
+    {
+      source: "ipv4",
+      status: "success",
+      checkedAt: "2026-06-23T09:00:00Z",
+      durationMs: null,
+      detail: "192.168.0.23",
+    },
+    {
+      source: "default_route",
+      status: "success",
+      checkedAt: "2026-06-23T09:00:00Z",
+      durationMs: null,
+      detail: "default route 선택됨",
+    },
+    {
       source: "gateway",
       status: "success",
       checkedAt: "2026-06-23T09:00:01Z",
