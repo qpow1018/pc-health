@@ -1,4 +1,5 @@
 import NetworkStatusPanel from "@/features/network-diagnostics/NetworkStatusPanel";
+import RecentIncidentsPanel from "@/features/network-incidents/RecentIncidentsPanel";
 import NetworkProbePanel from "@/features/network-probe/NetworkProbePanel";
 import styles from "./ProductHome.module.css";
 
@@ -31,6 +32,7 @@ export default function ProductHome() {
         ))}
       </section>
       <NetworkStatusPanel />
+      <RecentIncidentsPanel />
       <NetworkProbePanel />
     </main>
   );

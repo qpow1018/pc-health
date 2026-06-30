@@ -6,6 +6,10 @@ vi.mock("@/features/network-diagnostics/NetworkStatusPanel", () => ({
   default: () => <section>현재 네트워크 진단 상태</section>,
 }));
 
+vi.mock("@/features/network-incidents/RecentIncidentsPanel", () => ({
+  default: () => <section>최근 장애</section>,
+}));
+
 describe("ProductHome", () => {
   it("shows network diagnostics as the only product area", () => {
     render(<ProductHome />);
@@ -19,6 +23,7 @@ describe("ProductHome", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("기획 중")).not.toBeInTheDocument();
     expect(screen.getByText("현재 네트워크 진단 상태")).toBeInTheDocument();
+    expect(screen.getByText("최근 장애")).toBeInTheDocument();
     expect(screen.queryByText(/성능 모니터/)).not.toBeInTheDocument();
   });
 });
