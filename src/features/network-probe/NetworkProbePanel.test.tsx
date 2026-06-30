@@ -17,7 +17,7 @@ describe("NetworkProbePanel", () => {
     getSnapshotMock.mockReset();
   });
 
-  it("runs once and displays formatted raw JSON", async () => {
+  it("runs once and keeps formatted raw JSON behind a disclosure", async () => {
     getSnapshotMock.mockResolvedValue(snapshot);
     const user = userEvent.setup();
     render(<NetworkProbePanel />);
@@ -25,7 +25,13 @@ describe("NetworkProbePanel", () => {
     await user.click(screen.getByRole("button", { name: "네트워크 확인 실행" }));
 
     expect(getSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Raw JSON")).toBeInTheDocument();
+    expect(screen.queryByText(/"collector": "windows-native"/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Raw JSON 펼치기" }));
+
     expect(screen.getByText(/"collector": "windows-native"/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Raw JSON 접기" })).toBeInTheDocument();
   });
 
   it("prevents duplicate runs while the probe is pending", async () => {
@@ -44,6 +50,7 @@ describe("NetworkProbePanel", () => {
     const user = userEvent.setup();
     render(<NetworkProbePanel />);
     await user.click(screen.getByRole("button", { name: "네트워크 확인 실행" }));
+    await user.click(screen.getByRole("button", { name: "Raw JSON 펼치기" }));
 
     await user.click(screen.getByRole("button", { name: "JSON 복사" }));
 

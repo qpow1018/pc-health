@@ -9,8 +9,10 @@ export default function NetworkProbePanel() {
   const [json, setJson] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [isJsonExpanded, setIsJsonExpanded] = useState(false);
 
   async function runProbe() {
+    setIsJsonExpanded(false);
     setState("loading");
     setError(null);
     setCopyMessage(null);
@@ -63,12 +65,24 @@ export default function NetworkProbePanel() {
         <div className={styles["result"]}>
           <div className={styles["result-header"]}>
             <span>Raw JSON</span>
-            <button type="button" onClick={copyJson}>
-              JSON 복사
+            <button
+              type="button"
+              onClick={() => setIsJsonExpanded((current) => !current)}
+            >
+              {isJsonExpanded ? "Raw JSON 접기" : "Raw JSON 펼치기"}
             </button>
           </div>
-          <pre>{json}</pre>
-          {copyMessage && <p className={styles["copy-message"]}>{copyMessage}</p>}
+          {isJsonExpanded && (
+            <>
+              <pre>{json}</pre>
+              <button type="button" onClick={copyJson}>
+                JSON 복사
+              </button>
+              {copyMessage && (
+                <p className={styles["copy-message"]}>{copyMessage}</p>
+              )}
+            </>
+          )}
         </div>
       )}
     </section>
