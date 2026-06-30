@@ -11,6 +11,7 @@ use std::{
 use super::{
     collector::{GOOGLE_URL, MICROSOFT_URL},
     domain::{DiagnosticArea, DiagnosticLifecycle},
+    incident_recorder::NetworkIncidentRecorder,
     observation::assess,
     state_machine::NetworkDiagnosticStateMachine,
 };
@@ -136,7 +137,7 @@ impl NetworkDiagnosticsRuntime {
     #[cfg(target_os = "windows")]
     pub fn platform(coordinator: NetworkProbeCoordinator) -> Self {
         let (wait, stop) = SystemWait::new();
-        Self::start(coordinator, wait, stop)
+        Self::start(coordinator, wait, stop, None)
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -149,13 +150,14 @@ impl NetworkDiagnosticsRuntime {
         coordinator: NetworkProbeCoordinator,
         wait: W,
         stop: StopHandle,
+        recorder: Option<NetworkIncidentRecorder>,
     ) -> Self {
         let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
         let worker_latest = latest.clone();
         let panic_latest = latest.clone();
         let worker = std::thread::spawn(move || {
             if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                run_worker(coordinator, wait, worker_latest);
+                run_worker(coordinator, wait, worker_latest, recorder);
             }))
             .is_err()
             {
@@ -193,7 +195,7 @@ impl NetworkDiagnosticsRuntime {
         coordinator: NetworkProbeCoordinator,
         wait: W,
     ) -> Self {
-        Self::start(coordinator, wait, StopHandle::inactive())
+        Self::start(coordinator, wait, StopHandle::inactive(), None)
     }
 
     fn unavailable() -> Self {
@@ -231,8 +233,9 @@ fn run_worker<W: RuntimeWait>(
     coordinator: NetworkProbeCoordinator,
     wait: W,
     latest: Arc<RwLock<NetworkDiagnosticStatus>>,
+    recorder: Option<NetworkIncidentRecorder>,
 ) {
-    run_worker_observed(coordinator, wait, latest, |_, _| {});
+    run_worker_observed(coordinator, wait, latest, recorder, |_, _| {});
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -240,6 +243,7 @@ fn run_worker_observed<W, F>(
     coordinator: NetworkProbeCoordinator,
     mut wait: W,
     latest: Arc<RwLock<NetworkDiagnosticStatus>>,
+    mut recorder: Option<NetworkIncidentRecorder>,
     mut observe: F,
 ) where
     W: RuntimeWait,
@@ -252,13 +256,13 @@ fn run_worker_observed<W, F>(
 
     let startup = ProbeRequest::Full;
     observe(&startup, wait.elapsed());
-    if !run_probe(&coordinator, &mut machine, &latest, startup) {
+    if !run_probe(&coordinator, &mut machine, &latest, &mut recorder, startup) {
         return;
     }
     if focused_needed(&machine.status()) {
         let focused = ProbeRequest::Focused;
         observe(&focused, wait.elapsed());
-        if !run_probe(&coordinator, &mut machine, &latest, focused) {
+        if !run_probe(&coordinator, &mut machine, &latest, &mut recorder, focused) {
             return;
         }
         last_focused = Some(wait.elapsed());
@@ -271,7 +275,7 @@ fn run_worker_observed<W, F>(
         let request = baseline_request(wait.elapsed(), next_external_due, external_index);
         let external_due = matches!(request, ProbeRequest::Baseline(Some(_)));
         observe(&request, wait.elapsed());
-        if !run_probe(&coordinator, &mut machine, &latest, request) {
+        if !run_probe(&coordinator, &mut machine, &latest, &mut recorder, request) {
             return;
         }
         if external_due {
@@ -285,7 +289,7 @@ fn run_worker_observed<W, F>(
         if cooldown_elapsed && focused_needed(&machine.status()) {
             let focused = ProbeRequest::Focused;
             observe(&focused, wait.elapsed());
-            if !run_probe(&coordinator, &mut machine, &latest, focused) {
+            if !run_probe(&coordinator, &mut machine, &latest, &mut recorder, focused) {
                 return;
             }
             last_focused = Some(wait.elapsed());
@@ -308,6 +312,7 @@ fn run_probe(
     coordinator: &NetworkProbeCoordinator,
     machine: &mut NetworkDiagnosticStateMachine,
     latest: &Arc<RwLock<NetworkDiagnosticStatus>>,
+    recorder: &mut Option<NetworkIncidentRecorder>,
     request: ProbeRequest,
 ) -> bool {
     let result = match request {
@@ -326,8 +331,7 @@ fn run_probe(
     let status = machine.apply(assess(snapshot), &observed_at, full);
     match latest.write() {
         Ok(mut latest) => {
-            *latest = status;
-            true
+            *latest = status.clone();
         }
         Err(poisoned) => {
             let mut latest = poisoned.into_inner();
@@ -335,9 +339,13 @@ fn run_probe(
                 &mut latest,
                 "network diagnostic status lock failed".into(),
             );
-            false
+            return false;
         }
     }
+    if let Some(recorder) = recorder.as_mut() {
+        let _ = recorder.record(&status);
+    }
+    true
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -374,6 +382,8 @@ mod tests {
             AdapterSnapshot, DnsCheck, GatewayCheck, HttpCheck, ProbeError, ProbeStatus,
             RouteSnapshot,
         },
+        incident_recorder::NetworkIncidentRecorder,
+        incident_store::NetworkIncidentStore,
         service::NetworkProbeService,
     };
     use std::{
@@ -439,6 +449,7 @@ mod tests {
         collection_calls: Option<Arc<AtomicUsize>>,
         fake_clock: Option<Arc<Mutex<Duration>>>,
         slow_by: Duration,
+        evidence_duration_ms: u64,
     }
 
     impl RecordingCollector {
@@ -453,6 +464,7 @@ mod tests {
                 collection_calls: None,
                 fake_clock: None,
                 slow_by: Duration::ZERO,
+                evidence_duration_ms: 0,
             }
         }
 
@@ -541,7 +553,7 @@ mod tests {
                 } else {
                     ProbeStatus::Success
                 },
-                duration_ms: 0,
+                duration_ms: self.evidence_duration_ms,
                 reply_address: None,
                 round_trip_ms: None,
                 error: None,
@@ -650,6 +662,7 @@ mod tests {
             coordinator(collector),
             ScriptedWait::elapsed(waits),
             latest.clone(),
+            None,
         );
         let status = latest.read().unwrap().clone();
         status
@@ -662,6 +675,7 @@ mod tests {
             coordinator(collector),
             ScriptedWait::elapsed(waits),
             latest,
+            None,
             |request, elapsed| requests.push((request.clone(), elapsed)),
         );
         requests
@@ -814,12 +828,18 @@ mod tests {
         };
         let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
         let worker = thread::spawn(move || {
-            run_worker_observed(coordinator(collector), wait, latest, |request, elapsed| {
-                worker_observed
-                    .lock()
-                    .unwrap()
-                    .push((request.clone(), elapsed))
-            })
+            run_worker_observed(
+                coordinator(collector),
+                wait,
+                latest,
+                None,
+                |request, elapsed| {
+                    worker_observed
+                        .lock()
+                        .unwrap()
+                        .push((request.clone(), elapsed))
+                },
+            )
         });
 
         barrier.wait();
@@ -885,13 +905,36 @@ mod tests {
     fn collection_failure_is_exposed_and_stops_the_worker() {
         let coordinator = NetworkProbeCoordinator::failed_for_test("collector exploded");
         let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
-        run_worker(coordinator, ScriptedWait::elapsed(5), latest.clone());
+        run_worker(coordinator, ScriptedWait::elapsed(5), latest.clone(), None);
         let status = latest.read().unwrap();
         assert_eq!(status.availability, RuntimeAvailability::Error);
         assert_eq!(status.error.as_ref().unwrap().stage, "runtime");
         assert_eq!(status.error.as_ref().unwrap().code, "runtime_failed");
         assert_eq!(status.error.as_ref().unwrap().message, "collector exploded");
         assert_eq!(status.error.as_ref().unwrap().native_code, None);
+    }
+
+    #[test]
+    fn recorder_failure_does_not_stop_runtime_or_set_availability_error() {
+        let latest = Arc::new(RwLock::new(NetworkDiagnosticStatus::starting()));
+        let recorder =
+            NetworkIncidentRecorder::new(NetworkIncidentStore::open_in_memory().unwrap());
+        let collector = RecordingCollector {
+            evidence_duration_ms: u64::MAX,
+            ..RecordingCollector::scenario(Scenario::Gateway)
+        };
+
+        run_worker(
+            coordinator(collector),
+            ScriptedWait::elapsed(1),
+            latest.clone(),
+            Some(recorder),
+        );
+
+        let status = latest.read().unwrap();
+        assert_eq!(status.availability, RuntimeAvailability::Running);
+        assert_eq!(status.lifecycle, Some(DiagnosticLifecycle::Incident));
+        assert!(status.error.is_none());
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -927,6 +970,7 @@ mod tests {
             coordinator(RecordingCollector::normal(Arc::new(Mutex::new(vec![])))),
             ScriptedWait::elapsed(5),
             latest.clone(),
+            None,
         );
         let runtime = NetworkDiagnosticsRuntime {
             latest,

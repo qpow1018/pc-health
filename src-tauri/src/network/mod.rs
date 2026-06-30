@@ -1,5 +1,6 @@
 pub mod collector;
 pub mod domain;
+pub mod incident_recorder;
 pub mod incident_store;
 pub mod observation;
 pub mod runtime;
