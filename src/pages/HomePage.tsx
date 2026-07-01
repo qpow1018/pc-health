@@ -28,7 +28,7 @@ export default function HomePage() {
     <>
       <header className={styles["app-header"]}>
         <div className={styles["app-header-inner"]}>
-          <strong className={styles["brand"]}>PC Health</strong>
+          <strong className={styles["brand"]}>Net Checker</strong>
           <nav className={styles["nav"]} aria-label="주요 화면">
             <button
               type="button"

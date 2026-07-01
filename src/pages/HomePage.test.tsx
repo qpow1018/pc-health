@@ -70,7 +70,7 @@ describe("HomePage", () => {
   it("switches between home and incident history views from the app header", () => {
     render(<HomePage />);
 
-    expect(screen.getByRole("banner")).toHaveTextContent("PC Health");
+    expect(screen.getByRole("banner")).toHaveTextContent("Net Checker");
     expect(
       screen.getByRole("button", { name: "현재 진단" }),
     ).toHaveAttribute("aria-current", "page");

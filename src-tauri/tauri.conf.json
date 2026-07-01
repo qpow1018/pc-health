@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PC Health",
+  "productName": "Net Checker",
   "version": "0.1.0",
-  "identifier": "com.choewonjin.pc-health",
+  "identifier": "com.choewonjin.net-checker",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "PC Health",
+        "title": "Net Checker",
         "width": 1200,
         "height": 760,
         "minWidth": 760,

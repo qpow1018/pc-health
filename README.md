@@ -1,6 +1,6 @@
-# PC Health
+# Net Checker
 
-PC Health는 인터넷 장애의 원인 구간을 근거와 함께 구분하는 개인용 읽기 전용 Windows 데스크톱 유틸리티다.
+Net Checker는 인터넷 연결 문제를 근거와 함께 확인하는 Windows 유틸리티다.
 
 ## Status
 
