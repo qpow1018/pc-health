@@ -1,20 +1,21 @@
 .panel {
   margin-top: 18px;
-  border: 1px solid #304563;
+  border: 1px solid #202b38;
   border-radius: 10px;
-  padding: 18px;
-  background: #101827;
+  padding: 20px;
+  background: #111720;
 }
 
 .panel-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 24px;
+  gap: 20px;
 
   h2 {
-    margin: 5px 0 7px;
-    font-size: 1.1rem;
+    margin: 0 0 8px;
+    color: #f4f8ff;
+    font-size: 1.22rem;
   }
 
   p:last-child {
@@ -29,23 +30,17 @@
   }
 }
 
-.label {
-  margin: 0;
-  color: #79b8ff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-
 .panel button {
-  border: 1px solid #42638d;
-  border-radius: 7px;
-  padding: 8px 12px;
-  background: #182943;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: #d7e1ee;
+  background: #18202b;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    border-color: #79b8ff;
+    border-color: #34465d;
+    background: #1d2836;
   }
 
   &:disabled {
@@ -64,7 +59,7 @@
 
 .result {
   margin-top: 16px;
-  border-top: 1px solid #263b57;
+  border-top: 1px solid rgba(143, 158, 178, 0.14);
   padding-top: 14px;
 
   pre {
@@ -74,7 +69,7 @@
     border-radius: 7px;
     padding: 14px;
     color: #c9d7e9;
-    background: #080f1a;
+    background: #0b1119;
     font: 0.78rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
     white-space: pre;
     user-select: text;
@@ -91,7 +86,7 @@
   justify-content: space-between;
   gap: 12px;
   color: #9fb0c8;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 

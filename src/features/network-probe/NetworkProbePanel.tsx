@@ -43,7 +43,6 @@ export default function NetworkProbePanel() {
     <section className={styles["panel"]} aria-labelledby="network-probe-title">
       <div className={styles["panel-header"]}>
         <div>
-          <p className={styles["label"]}>WINDOWS RAW PROBE</p>
           <h2 id="network-probe-title">원시 네트워크 확인</h2>
           <p>
             장애를 판정하지 않고 어댑터, 게이트웨이, DNS와 외부 연결의 원시
