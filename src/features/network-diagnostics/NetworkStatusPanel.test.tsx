@@ -355,7 +355,8 @@ describe("NetworkStatusPanel", () => {
 
     render(<NetworkStatusPanel />);
 
-    expect(await screen.findByRole("status")).toHaveTextContent("정상");
+    await screen.findByText("정상");
+    expect(screen.getByRole("status")).toHaveTextContent("정상");
     expect(screen.getByTestId("path-dns")).toHaveTextContent("최근 전체 확인 필요");
     expect(screen.getByTestId("path-dns")).not.toHaveTextContent("시간 초과");
     expect(screen.getByTestId("evidence-dns")).toHaveTextContent(

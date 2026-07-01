@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { normalStatusFixture } from "./fixture";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { invokeMock, isTauriMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
@@ -11,30 +10,45 @@ vi.mock("@tauri-apps/api/core", () => ({
   isTauri: isTauriMock,
 }));
 
-import {
-  canUseNetworkDiagnostics,
-  getNetworkDiagnosticStatus,
-} from "./api";
-
-describe("network diagnostics API", () => {
+describe("network diagnostics api mock mode", () => {
   beforeEach(() => {
+    window.history.replaceState(null, "", "/");
     invokeMock.mockReset();
     isTauriMock.mockReset();
   });
 
-  it("reads the current in-memory status", async () => {
-    invokeMock.mockResolvedValue(normalStatusFixture);
-
-    await expect(getNetworkDiagnosticStatus()).resolves.toBe(
-      normalStatusFixture,
-    );
-    expect(invokeMock).toHaveBeenCalledWith("get_network_diagnostic_status");
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
   });
 
-  it("reports browser mode without invoking Tauri", () => {
+  it("uses browser mock data when a mock scenario is selected", async () => {
+    window.history.replaceState(null, "", "/?mock=dns-incident");
     isTauriMock.mockReturnValue(false);
+    const { canUseNetworkDiagnostics, getNetworkDiagnosticStatus } = await import(
+      "./api"
+    );
 
-    expect(canUseNetworkDiagnostics()).toBe(false);
+    expect(canUseNetworkDiagnostics()).toBe(true);
+    await expect(getNetworkDiagnosticStatus()).resolves.toMatchObject({
+      availability: "running",
+      lifecycle: "incident",
+      suspectedArea: "dns",
+    });
     expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps Tauri runtime on the native command path", async () => {
+    window.history.replaceState(null, "", "/?mock=gateway-incident");
+    isTauriMock.mockReturnValue(true);
+    invokeMock.mockResolvedValue({ availability: "running" });
+    const { canUseNetworkDiagnostics, getNetworkDiagnosticStatus } = await import(
+      "./api"
+    );
+
+    expect(canUseNetworkDiagnostics()).toBe(true);
+    await expect(getNetworkDiagnosticStatus()).resolves.toEqual({
+      availability: "running",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("get_network_diagnostic_status");
   });
 });
