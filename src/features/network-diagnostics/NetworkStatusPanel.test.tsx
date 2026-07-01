@@ -184,9 +184,7 @@ describe("NetworkStatusPanel", () => {
     render(<NetworkStatusPanel />);
 
     expect(
-      await screen.findAllByText(
-        "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.",
-      ),
+      await screen.findAllByText("Windows 앱에서만 확인할 수 있습니다."),
     ).toHaveLength(2);
     expect(screen.queryByText("호환되는 이상이 반복 확인되었습니다.")).not.toBeInTheDocument();
   });
@@ -221,7 +219,7 @@ describe("NetworkStatusPanel", () => {
 
     expect(screen.getByText("첫 확인 대기")).toBeInTheDocument();
     expect(
-      screen.getAllByText("진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다."),
+      screen.getAllByText("첫 확인 결과를 기다리고 있습니다."),
     ).toHaveLength(2);
   });
 
@@ -358,10 +356,10 @@ describe("NetworkStatusPanel", () => {
 
     await screen.findByText("정상");
     expect(screen.getByRole("status")).toHaveTextContent("정상");
-    expect(screen.getByTestId("path-dns")).toHaveTextContent("최근 전체 확인 필요");
+    expect(screen.getByTestId("path-dns")).toHaveTextContent("전체 확인 필요");
     expect(screen.getByTestId("path-dns")).not.toHaveTextContent("시간 초과");
     expect(screen.getByTestId("evidence-dns")).toHaveTextContent(
-      "최근 전체 확인 필요",
+      "전체 확인 필요",
     );
     expect(screen.getByTestId("evidence-dns")).toHaveTextContent(
       "현재 기본 확인에는 DNS를 다시 검사하지 않았습니다.",

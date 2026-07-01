@@ -135,7 +135,7 @@ function displayForEvidence(
   if (isStaleRemoteFailure(status, evidence)) {
     const target = evidence.source.startsWith("dns_") ? "DNS" : "외부 연결";
     return {
-      label: "최근 전체 확인 필요",
+      label: "전체 확인 필요",
       tone: "unknown",
       durationMs: null,
       detail: `현재 기본 확인에는 ${target}를 다시 검사하지 않았습니다.`,
@@ -259,9 +259,22 @@ function evidenceForArea(status: NetworkDiagnosticStatus) {
   return latestEvidence(status.evidence, ["http_microsoft", "http_google"]);
 }
 
+function unavailableMessageForStatus(status: NetworkDiagnosticStatus) {
+  if (status.availability === "starting") {
+    return "첫 확인 결과를 기다리고 있습니다.";
+  }
+  if (status.availability === "unavailable") {
+    return "Windows 앱에서만 확인할 수 있습니다.";
+  }
+  if (status.availability === "error") {
+    return "진단 상태를 확인할 수 없습니다.";
+  }
+  return "아직 확인할 수 없습니다.";
+}
+
 function descriptionForStatus(status: NetworkDiagnosticStatus) {
   if (status.availability !== "running" || !status.lifecycle) {
-    return "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.";
+    return unavailableMessageForStatus(status);
   }
 
   if (status.lifecycle === "normal") {
@@ -285,7 +298,7 @@ function descriptionForStatus(status: NetworkDiagnosticStatus) {
 
 function reasonForStatus(status: NetworkDiagnosticStatus) {
   if (status.availability !== "running" || !status.lifecycle) {
-    return "진단 근거가 부족하거나 Windows 앱에서만 확인할 수 있습니다.";
+    return unavailableMessageForStatus(status);
   }
 
   if (status.lifecycle === "normal") {
@@ -325,9 +338,9 @@ function progressForStatus(status: NetworkDiagnosticStatus) {
     return "기본 확인 완료";
   }
 
-  if (status.lifecycle === "suspected") return "추가 근거 확인 중";
+  if (status.lifecycle === "suspected") return "일시적인 문제인지 확인 중";
   if (status.lifecycle === "incident") return "문제가 확인됨";
-  return "복구 근거 확인 중";
+  return "정상으로 돌아왔는지 확인 중";
 }
 
 export default function NetworkStatusPanel() {
@@ -507,7 +520,7 @@ export default function NetworkStatusPanel() {
       </div>
 
       <div className={styles["evidence"]}>
-        <h3>최신 근거</h3>
+        <h3>최근 확인 내용</h3>
         <ul>
           {rows.map((row) => (
             <EvidenceRow key={row.testId} status={status} {...row} />
