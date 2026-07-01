@@ -67,8 +67,9 @@ describe("RecentIncidentsPanel", () => {
     expect(screen.getByText("복구 확인 중")).toBeInTheDocument();
     expect(screen.getByText("복구됨")).toBeInTheDocument();
     expect(
-      screen.getAllByText("공유기 또는 로컬 연결 구간").length,
+      screen.getAllByText("내 PC 또는 공유기").length,
     ).toBeGreaterThan(0);
+    expect(screen.queryByText("RECENT INCIDENTS")).not.toBeInTheDocument();
   });
 
   it("limits the main panel to three rows", async () => {

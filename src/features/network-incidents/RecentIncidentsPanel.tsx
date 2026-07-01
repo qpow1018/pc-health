@@ -13,10 +13,10 @@ const statusLabels: Record<NetworkIncidentStatus, string> = {
 };
 
 const areaLabels: Record<NetworkIncident["area"], string> = {
-  local_connection: "로컬 연결 구간",
-  gateway_or_local: "공유기 또는 로컬 연결 구간",
+  local_connection: "내 PC 연결",
+  gateway_or_local: "내 PC 또는 공유기",
   dns: "DNS",
-  external: "외부 연결 구간",
+  external: "외부 연결",
   unknown: "확인 불가",
 };
 
@@ -61,7 +61,6 @@ export default function RecentIncidentsPanel({
   return (
     <section className={styles["panel"]} aria-labelledby="recent-incidents-title">
       <header className={styles["header"]}>
-        <p>RECENT INCIDENTS</p>
         <h2 id="recent-incidents-title">최근 장애</h2>
         {onOpenHistory ? (
           <button type="button" onClick={onOpenHistory}>
