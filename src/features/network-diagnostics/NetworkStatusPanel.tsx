@@ -423,7 +423,6 @@ export default function NetworkStatusPanel() {
     >
       <div className={styles["panel-header"]}>
         <div>
-          <p className={styles["label"]}>CURRENT NETWORK STATUS</p>
           <h2 id="network-status-title">현재 네트워크 진단</h2>
         </div>
         <strong
@@ -490,18 +489,21 @@ export default function NetworkStatusPanel() {
         </div>
       </dl>
 
-      <div className={styles["path"]} aria-label="구간별 진단 경로">
-        {displayPathStages.map((stage) => (
-          <div
-            className={styles["path-stage"]}
-            data-tone={stage.display.tone}
-            data-testid={`path-${stage.key}`}
-            key={stage.key}
-          >
-            <span className={styles["path-label"]}>{stage.label}</span>
-            <strong>{stage.display.label}</strong>
-          </div>
-        ))}
+      <div className={styles["path-section"]}>
+        <h3>연결 경로</h3>
+        <div className={styles["path"]} aria-label="구간별 진단 경로">
+          {displayPathStages.map((stage) => (
+            <div
+              className={styles["path-stage"]}
+              data-tone={stage.display.tone}
+              data-testid={`path-${stage.key}`}
+              key={stage.key}
+            >
+              <span className={styles["path-label"]}>{stage.label}</span>
+              <strong>{stage.display.label}</strong>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className={styles["evidence"]}>

@@ -13,17 +13,9 @@
   gap: 20px;
 
   h2 {
-    margin: 5px 0 0;
-    font-size: 1.1rem;
+    margin: 0;
+    font-size: 1.22rem;
   }
-}
-
-.label {
-  margin: 0;
-  color: #79b8ff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
 }
 
 .status {
@@ -94,11 +86,19 @@
   }
 }
 
+.path-section {
+  margin-top: 16px;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 0.82rem;
+  }
+}
+
 .path {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
-  margin-top: 16px;
   border-radius: 10px;
   padding: 8px;
   background: #0d131b;

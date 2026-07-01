@@ -249,6 +249,7 @@ describe("NetworkStatusPanel", () => {
 
     render(<NetworkStatusPanel />);
 
+    expect(await screen.findByText("연결 경로")).toBeInTheDocument();
     expect(await screen.findByLabelText("구간별 진단 경로")).toBeInTheDocument();
     expect(screen.getByTestId("path-pc")).toHaveTextContent("PC/어댑터");
     expect(screen.getByTestId("path-pc")).toHaveTextContent("확인하지 않음");
