@@ -1,0 +1,45 @@
+.app-header {
+  background: rgba(9, 13, 18, 0.92);
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 12px 28px;
+}
+
+.brand {
+  color: #e7edf5;
+  font-size: 0.95rem;
+}
+
+.nav {
+  display: flex;
+  gap: 2px;
+  border-radius: 9px;
+  padding: 3px;
+  background: #131922;
+}
+
+.nav button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 6px 10px;
+  color: #9aa6b5;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nav button[aria-current="page"] {
+  color: #f7fbff;
+  background: #263141;
+}
+
+@media (max-width: 700px) {
+  .app-header-inner {
+    padding: 10px 18px;
+  }
+}

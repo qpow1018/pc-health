@@ -1,14 +1,42 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+mod commands;
+mod network;
+
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .setup(|app| {
+            let coordinator = network::service::NetworkProbeCoordinator::platform();
+            let incident_store = app
+                .path()
+                .app_data_dir()
+                .ok()
+                .and_then(|data_dir| {
+                    std::fs::create_dir_all(&data_dir)
+                        .ok()
+                        .map(|_| data_dir.join("network.sqlite"))
+                })
+                .and_then(|path| network::incident_store::NetworkIncidentStore::open(path).ok());
+            let recorder = incident_store.as_ref().map(|store| {
+                network::incident_recorder::NetworkIncidentRecorder::new(store.clone())
+            });
+            let incident_history_state = commands::NetworkIncidentHistoryState::new(incident_store);
+            let runtime = network::runtime::NetworkDiagnosticsRuntime::platform(
+                coordinator.clone(),
+                recorder,
+            );
+            app.manage(coordinator);
+            app.manage(incident_history_state);
+            app.manage(runtime);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_network_probe_snapshot,
+            commands::get_network_diagnostic_status,
+            commands::get_recent_network_incidents,
+            commands::get_network_incidents,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

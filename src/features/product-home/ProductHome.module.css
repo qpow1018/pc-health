@@ -1,0 +1,11 @@
+.shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 20px 28px 36px;
+}
+
+@media (max-width: 700px) {
+  .shell {
+    padding: 16px 18px 32px;
+  }
+}

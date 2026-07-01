@@ -27,6 +27,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Build and upload Windows artifact
         uses: tauri-apps/tauri-action@v0.6.2
         with:
