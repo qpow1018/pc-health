@@ -31,7 +31,7 @@ const deferred = <T,>() => {
 };
 
 function expectAreaLabel(label: string) {
-  const areaRow = screen.getByText("추정 구간").closest("div");
+  const areaRow = screen.getByText("문제가 의심되는 곳").closest("div");
   expect(areaRow).not.toBeNull();
   expect(within(areaRow as HTMLElement).getByText(label)).toBeInTheDocument();
 }
@@ -366,7 +366,7 @@ describe("NetworkStatusPanel", () => {
     expect(screen.getByTestId("evidence-dns")).toHaveTextContent(
       "현재 기본 확인에는 DNS를 다시 검사하지 않았습니다.",
     );
-    expect(screen.getByText("마지막 전체 확인")).toBeInTheDocument();
+    expect(screen.getByText("전체 확인")).toBeInTheDocument();
   });
 
   it("shows a command error message as unavailable", async () => {

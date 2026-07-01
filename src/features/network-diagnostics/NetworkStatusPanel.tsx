@@ -452,8 +452,16 @@ export default function NetworkStatusPanel() {
 
       <dl className={styles["summary"]}>
         <div>
-          <dt>추정 구간</dt>
+          <dt>문제가 의심되는 곳</dt>
           <dd>{areaLabel}</dd>
+        </div>
+        <div>
+          <dt>판단 이유</dt>
+          <dd>{reasonLabel}</dd>
+        </div>
+        <div>
+          <dt>진행 상태</dt>
+          <dd>{progressLabel}</dd>
         </div>
         <div>
           <dt>마지막 확인</dt>
@@ -468,7 +476,7 @@ export default function NetworkStatusPanel() {
           </dd>
         </div>
         <div>
-          <dt>마지막 전체 확인</dt>
+          <dt>전체 확인</dt>
           <dd>
             {status.lastFullProbeAt ? (
               <time dateTime={status.lastFullProbeAt}>
@@ -478,14 +486,6 @@ export default function NetworkStatusPanel() {
               "확인 시각 없음"
             )}
           </dd>
-        </div>
-        <div>
-          <dt>판정 이유</dt>
-          <dd>{reasonLabel}</dd>
-        </div>
-        <div>
-          <dt>확인 상태</dt>
-          <dd>{progressLabel}</dd>
         </div>
       </dl>
 
