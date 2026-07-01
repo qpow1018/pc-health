@@ -18,11 +18,18 @@ vi.mock("@/features/network-incidents/RecentIncidentsPanel", () => ({
 }));
 
 describe("ProductHome", () => {
-  it("shows network diagnostics as a compact header status", () => {
+  it("keeps the home header minimal", () => {
     render(<ProductHome onOpenIncidentHistory={vi.fn()} />);
 
-    expect(screen.getByText("인터넷 장애 진단")).toBeInTheDocument();
-    expect(screen.getByText("활성")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "PC Health" })).toBeInTheDocument();
+    expect(screen.queryByText("READ-ONLY PC DIAGNOSTICS")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /인터넷 장애의 원인 구간을 근거와 함께 구분하는 Windows 유틸리티입니다\./,
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("인터넷 장애 진단")).not.toBeInTheDocument();
+    expect(screen.queryByText("활성")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("제품 영역")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "드라이버 관리" }),

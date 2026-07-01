@@ -1,67 +1,20 @@
 .shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 24px 28px 36px;
+  padding: 20px 28px 36px;
 }
 
 .header {
-  display: flex;
-  gap: 18px;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 
   h1 {
     margin: 0;
-    font-size: 1.8rem;
-  }
-
-  > div:first-child > p:last-child {
-    margin: 10px 0 0;
-    color: #8fa3bf;
-  }
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #79b8ff;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-}
-
-.product-status {
-  display: grid;
-  gap: 4px;
-  min-width: 180px;
-  border: 1px solid #304563;
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: #101827;
-
-  span {
-    color: #79b8ff;
-    font-size: 0.76rem;
-    font-weight: 700;
-  }
-
-  strong {
-    margin: 0;
-    color: #d7e1ee;
-    font-size: 0.9rem;
+    font-size: 1.35rem;
   }
 }
 
 @media (max-width: 700px) {
   .shell {
-    padding: 20px 18px 32px;
-  }
-
-  .header {
-    display: grid;
-  }
-
-  .product-status {
-    min-width: 0;
+    padding: 16px 18px 32px;
   }
 }
