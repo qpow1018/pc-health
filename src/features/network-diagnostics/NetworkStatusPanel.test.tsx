@@ -251,7 +251,7 @@ describe("NetworkStatusPanel", () => {
     expect(await screen.findByLabelText("구간별 진단 경로")).toBeInTheDocument();
     expect(screen.getByTestId("path-pc")).toHaveTextContent("PC/어댑터");
     expect(screen.getByTestId("path-pc")).toHaveTextContent("확인하지 않음");
-    expect(screen.getByTestId("path-route")).toHaveTextContent("IPv4/Route");
+    expect(screen.getByTestId("path-route")).toHaveTextContent("IP/경로");
     expect(screen.getByTestId("path-gateway")).toHaveTextContent("게이트웨이");
     expect(screen.getByTestId("path-gateway")).toHaveTextContent("시간 초과");
     expect(screen.getByTestId("path-dns")).toHaveTextContent("DNS");

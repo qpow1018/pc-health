@@ -161,7 +161,7 @@ function buildPathStages(evidence: DiagnosticEvidence[]): PathStage[] {
     },
     {
       key: "route",
-      label: "IPv4/Route",
+      label: "IP/경로",
       evidence: latestEvidence(evidence, ["ipv4", "default_route"]),
     },
     {
@@ -403,7 +403,7 @@ export default function NetworkStatusPanel() {
       evidence: latestEvidence(status.evidence, ["ethernet"]),
     },
     {
-      label: "IPv4/Route",
+      label: "IP/경로",
       testId: "evidence-route",
       evidence: latestEvidence(status.evidence, ["ipv4", "default_route"]),
     },
