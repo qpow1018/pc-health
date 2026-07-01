@@ -64,8 +64,10 @@ function formatDurationMs(value: number | null | undefined) {
 
 export default function NetworkIncidentHistoryPage({
   onBack,
+  onOpenDetail,
 }: {
   onBack?: () => void;
+  onOpenDetail?: (incident: NetworkIncident) => void;
 }) {
   const [available] = useState(canUseNetworkIncidents);
   const [incidents, setIncidents] = useState<NetworkIncident[]>([]);
@@ -218,7 +220,13 @@ export default function NetworkIncidentHistoryPage({
                       className={styles["detail-button"]}
                       type="button"
                       aria-pressed={selected}
-                      onClick={() => setSelectedIncidentId(incident.id)}
+                      onClick={() => {
+                        if (onOpenDetail) {
+                          onOpenDetail(incident);
+                          return;
+                        }
+                        setSelectedIncidentId(incident.id);
+                      }}
                     >
                       상세 보기
                     </button>

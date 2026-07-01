@@ -142,6 +142,24 @@ describe("NetworkIncidentHistoryPage", () => {
     expect(within(detail).getByText("gateway timeout")).toBeInTheDocument();
   });
 
+  it("opens the selected incident through the detail callback when provided", async () => {
+    getIncidentsMock.mockResolvedValue([ongoingIncidentFixture]);
+    const onOpenDetail = vi.fn();
+
+    render(
+      <NetworkIncidentHistoryPage
+        onBack={vi.fn()}
+        onOpenDetail={onOpenDetail}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "상세 보기" }));
+
+    expect(onOpenDetail).toHaveBeenCalledWith(ongoingIncidentFixture);
+    expect(
+      screen.queryByRole("region", { name: "선택한 장애 상세" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("closes the detail panel when the close action is pressed", async () => {
     getIncidentsMock.mockResolvedValue([ongoingIncidentFixture]);
 

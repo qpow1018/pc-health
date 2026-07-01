@@ -1,12 +1,28 @@
 import { useState } from "react";
 import ProductHome from "@/features/product-home/ProductHome";
+import NetworkIncidentDetailPage from "@/features/network-incidents/NetworkIncidentDetailPage";
 import NetworkIncidentHistoryPage from "@/features/network-incidents/NetworkIncidentHistoryPage";
+import type { NetworkIncident } from "@/features/network-incidents/types";
 import styles from "./HomePage.module.css";
 
 type HomeView = "home" | "incident_history";
 
 export default function HomePage() {
   const [view, setView] = useState<HomeView>("home");
+  const [selectedIncident, setSelectedIncident] = useState<NetworkIncident | null>(
+    null,
+  );
+  const isIncidentSection = view === "incident_history" || selectedIncident !== null;
+
+  const openHistory = () => {
+    setSelectedIncident(null);
+    setView("incident_history");
+  };
+
+  const openHome = () => {
+    setSelectedIncident(null);
+    setView("home");
+  };
 
   return (
     <>
@@ -16,25 +32,30 @@ export default function HomePage() {
           <nav className={styles["nav"]} aria-label="주요 화면">
             <button
               type="button"
-              aria-current={view === "home" ? "page" : undefined}
-              onClick={() => setView("home")}
+              aria-current={!isIncidentSection ? "page" : undefined}
+              onClick={openHome}
             >
               현재 진단
             </button>
             <button
               type="button"
-              aria-current={view === "incident_history" ? "page" : undefined}
-              onClick={() => setView("incident_history")}
+              aria-current={isIncidentSection ? "page" : undefined}
+              onClick={openHistory}
             >
               장애 이력
             </button>
           </nav>
         </div>
       </header>
-      {view === "incident_history" ? (
-        <NetworkIncidentHistoryPage />
+      {selectedIncident ? (
+        <NetworkIncidentDetailPage
+          incident={selectedIncident}
+          onBack={openHistory}
+        />
+      ) : view === "incident_history" ? (
+        <NetworkIncidentHistoryPage onOpenDetail={setSelectedIncident} />
       ) : (
-        <ProductHome onOpenIncidentHistory={() => setView("incident_history")} />
+        <ProductHome onOpenIncidentHistory={openHistory} />
       )}
     </>
   );
