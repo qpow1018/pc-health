@@ -65,24 +65,25 @@
 .summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 18px 0 0;
+  gap: 14px;
+  margin: 20px 0 0;
 
   div {
     border-radius: 8px;
-    padding: 13px 14px;
+    padding: 16px;
     background: #0d131b;
   }
 
   dt {
     color: #8394aa;
-    font-size: 0.74rem;
+    font-size: 0.76rem;
   }
 
   dd {
-    margin: 6px 0 0;
+    margin: 7px 0 0;
     color: #d7e1ee;
-    font-size: 0.92rem;
+    font-size: 0.96rem;
+    line-height: 1.45;
   }
 }
 
