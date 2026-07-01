@@ -21,7 +21,9 @@ describe("ProductHome", () => {
   it("keeps the home header minimal", () => {
     render(<ProductHome onOpenIncidentHistory={vi.fn()} />);
 
-    expect(screen.getByRole("heading", { name: "PC Health" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "PC Health" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("READ-ONLY PC DIAGNOSTICS")).not.toBeInTheDocument();
     expect(
       screen.queryByText(

@@ -10,9 +10,6 @@ export default function ProductHome({
 }) {
   return (
     <main className={styles["shell"]}>
-      <header className={styles["header"]}>
-        <h1>PC Health</h1>
-      </header>
       <NetworkStatusPanel />
       <RecentIncidentsPanel onOpenHistory={onOpenIncidentHistory} />
       <NetworkProbePanel />

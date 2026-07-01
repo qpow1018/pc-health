@@ -65,7 +65,7 @@ function formatDurationMs(value: number | null | undefined) {
 export default function NetworkIncidentHistoryPage({
   onBack,
 }: {
-  onBack: () => void;
+  onBack?: () => void;
 }) {
   const [available] = useState(canUseNetworkIncidents);
   const [incidents, setIncidents] = useState<NetworkIncident[]>([]);
@@ -123,9 +123,11 @@ export default function NetworkIncidentHistoryPage({
   return (
     <main className={styles["shell"]}>
       <header className={styles["page-header"]}>
-        <button className={styles["back-button"]} type="button" onClick={onBack}>
-          돌아가기
-        </button>
+        {onBack ? (
+          <button className={styles["back-button"]} type="button" onClick={onBack}>
+            돌아가기
+          </button>
+        ) : null}
         <div>
           <p className={styles["eyebrow"]}>INCIDENT HISTORY</p>
           <h1>장애 이력</h1>

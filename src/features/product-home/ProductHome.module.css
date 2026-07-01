@@ -4,15 +4,6 @@
   padding: 20px 28px 36px;
 }
 
-.header {
-  margin-bottom: 8px;
-
-  h1 {
-    margin: 0;
-    font-size: 1.35rem;
-  }
-}
-
 @media (max-width: 700px) {
   .shell {
     padding: 16px 18px 32px;
