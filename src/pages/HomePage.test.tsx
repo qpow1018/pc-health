@@ -10,7 +10,7 @@ const selectedIncident = {
   startedAt: "2026-06-30T00:02:00Z",
   lastObservedAt: "2026-06-30T00:02:20Z",
   resolvedAt: null,
-  summary: "공유기 또는 로컬 연결 구간에서 이상 근거가 반복 확인되었습니다.",
+  summary: "내 PC 또는 공유기에서 문제 근거가 확인되었습니다.",
   representativeEvidence: [],
 } satisfies NetworkIncident;
 

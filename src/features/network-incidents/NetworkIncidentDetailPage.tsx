@@ -14,10 +14,10 @@ const statusLabels: Record<NetworkIncident["status"], string> = {
 };
 
 const areaLabels: Record<DiagnosticArea, string> = {
-  local_connection: "로컬 연결 구간",
-  gateway_or_local: "공유기 또는 로컬 연결 구간",
+  local_connection: "내 PC 연결",
+  gateway_or_local: "내 PC 또는 공유기",
   dns: "DNS",
-  external: "외부 연결 구간",
+  external: "외부 연결",
   unknown: "확인 불가",
 };
 
@@ -69,7 +69,6 @@ export default function NetworkIncidentDetailPage({
           장애 이력으로 돌아가기
         </button>
         <div>
-          <p className={styles["eyebrow"]}>INCIDENT DETAIL</p>
           <h1>장애 상세</h1>
           <p>{incident.summary}</p>
         </div>
@@ -86,7 +85,7 @@ export default function NetworkIncidentDetailPage({
             <dd>{statusLabels[incident.status]}</dd>
           </div>
           <div>
-            <dt>추정 구간</dt>
+            <dt>문제가 의심되는 곳</dt>
             <dd>{areaLabels[incident.area]}</dd>
           </div>
           <div>

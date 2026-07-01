@@ -457,7 +457,7 @@ mod tests {
                 .create_incident(
                     DiagnosticArea::GatewayOrLocal,
                     &format!("2026-06-30T00:00:0{index}Z"),
-                    "공유기 또는 로컬 연결 구간에서 시간 초과 근거가 반복 확인되었습니다.",
+                    "내 PC 또는 공유기에서 시간 초과 근거가 확인되었습니다.",
                     &[evidence(EvidenceSource::Gateway, EvidenceStatus::Timeout)],
                 )
                 .unwrap();
@@ -484,7 +484,7 @@ mod tests {
                 .create_incident(
                     DiagnosticArea::GatewayOrLocal,
                     &format!("2026-06-30T00:00:0{index}Z"),
-                    "공유기 또는 로컬 연결 구간에서 이상 근거가 반복 확인되었습니다.",
+                    "내 PC 또는 공유기에서 문제 근거가 확인되었습니다.",
                     &[evidence(EvidenceSource::Gateway, EvidenceStatus::Timeout)],
                 )
                 .unwrap();
@@ -504,7 +504,7 @@ mod tests {
             .create_incident(
                 DiagnosticArea::Dns,
                 "2026-06-30T00:00:00Z",
-                "DNS에서 시간 초과 근거가 반복 확인되었습니다.",
+                "DNS에서 시간 초과 근거가 확인되었습니다.",
                 &[evidence(
                     EvidenceSource::DnsMicrosoft,
                     EvidenceStatus::Timeout,
@@ -561,7 +561,7 @@ mod tests {
             .create_incident(
                 DiagnosticArea::External,
                 &old,
-                "외부 연결 구간에서 실패 근거가 반복 확인되었습니다.",
+                "외부 연결에서 실패 근거가 확인되었습니다.",
                 &[evidence(
                     EvidenceSource::HttpGoogle,
                     EvidenceStatus::Failure,
@@ -652,7 +652,7 @@ mod tests {
             .create_incident(
                 DiagnosticArea::Dns,
                 "2026-06-30T00:00:00Z",
-                "DNS에서 시간 초과 근거가 반복 확인되었습니다.",
+                "DNS에서 시간 초과 근거가 확인되었습니다.",
                 &[evidence(
                     EvidenceSource::DnsMicrosoft,
                     EvidenceStatus::Timeout,

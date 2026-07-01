@@ -21,10 +21,10 @@ const statusLabels: Record<NetworkIncidentStatus, string> = {
 };
 
 const areaLabels: Record<DiagnosticArea, string> = {
-  local_connection: "로컬 연결 구간",
-  gateway_or_local: "공유기 또는 로컬 연결 구간",
+  local_connection: "내 PC 연결",
+  gateway_or_local: "내 PC 또는 공유기",
   dns: "DNS",
-  external: "외부 연결 구간",
+  external: "외부 연결",
   unknown: "확인 불가",
 };
 
@@ -131,9 +131,8 @@ export default function NetworkIncidentHistoryPage({
           </button>
         ) : null}
         <div>
-          <p className={styles["eyebrow"]}>INCIDENT HISTORY</p>
           <h1>장애 이력</h1>
-          <p>앱 실행 중 확정된 네트워크 장애 기록을 보여줍니다.</p>
+          <p>앱 실행 중 확인된 장애 기록을 보여줍니다.</p>
         </div>
       </header>
 
@@ -175,8 +174,8 @@ export default function NetworkIncidentHistoryPage({
             }
           >
             <option value="all">전체</option>
-            <option value="local_connection">로컬 연결</option>
-            <option value="gateway_or_local">공유기 또는 로컬</option>
+            <option value="local_connection">내 PC 연결</option>
+            <option value="gateway_or_local">내 PC 또는 공유기</option>
             <option value="dns">DNS</option>
             <option value="external">외부 연결</option>
             <option value="unknown">확인 불가</option>
@@ -242,7 +241,6 @@ export default function NetworkIncidentHistoryPage({
               >
                 <div className={styles["detail-header"]}>
                   <div>
-                    <p className={styles["eyebrow"]}>INCIDENT DETAIL</p>
                     <h2>선택한 장애 상세</h2>
                   </div>
                   <button
@@ -260,7 +258,7 @@ export default function NetworkIncidentHistoryPage({
                     <dd>{statusLabels[selectedIncident.status]}</dd>
                   </div>
                   <div>
-                    <dt>추정 구간</dt>
+                    <dt>문제가 의심되는 곳</dt>
                     <dd>{areaLabels[selectedIncident.area]}</dd>
                   </div>
                   <div>

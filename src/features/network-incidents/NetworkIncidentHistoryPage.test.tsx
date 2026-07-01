@@ -133,7 +133,7 @@ describe("NetworkIncidentHistoryPage", () => {
     const detail = screen.getByRole("region", { name: "선택한 장애 상세" });
     expect(within(detail).getByText("진행 중")).toBeInTheDocument();
     expect(
-      within(detail).getByText("공유기 또는 로컬 연결 구간"),
+      within(detail).getByText("내 PC 또는 공유기"),
     ).toBeInTheDocument();
     expect(within(detail).getByText("아직 복구 기록 없음")).toBeInTheDocument();
     expect(within(detail).getByText("게이트웨이")).toBeInTheDocument();

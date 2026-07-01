@@ -84,7 +84,7 @@ describe("RecentIncidentsPanel", () => {
 
     expect(await screen.findAllByRole("listitem")).toHaveLength(3);
     expect(
-      screen.queryByText("확인 불가 구간에서 이상 근거가 반복 확인되었습니다."),
+      screen.queryByText("확인 불가 상태로 저장된 장애 기록입니다."),
     ).not.toBeInTheDocument();
   });
 

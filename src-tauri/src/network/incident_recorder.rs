@@ -121,19 +121,19 @@ fn summary_for(status: &NetworkDiagnosticStatus, incident_status: NetworkInciden
         .clone()
         .unwrap_or(DiagnosticArea::Unknown);
     let area_label = match area {
-        DiagnosticArea::LocalConnection => "로컬 연결 구간",
-        DiagnosticArea::GatewayOrLocal => "공유기 또는 로컬 연결 구간",
+        DiagnosticArea::LocalConnection => "내 PC 연결",
+        DiagnosticArea::GatewayOrLocal => "내 PC 또는 공유기",
         DiagnosticArea::Dns => "DNS",
-        DiagnosticArea::External => "외부 연결 구간",
+        DiagnosticArea::External => "외부 연결",
         DiagnosticArea::Unknown => "확인 불가",
     };
 
     match incident_status {
         NetworkIncidentStatus::Ongoing => {
-            format!("{area_label}에서 이상 근거가 반복 확인되었습니다.")
+            format!("{area_label}에서 문제 근거가 확인되었습니다.")
         }
         NetworkIncidentStatus::Recovering => {
-            format!("{area_label}의 정상 근거를 추가 확인하고 있습니다.")
+            format!("{area_label}이 정상으로 돌아왔는지 확인하고 있습니다.")
         }
         NetworkIncidentStatus::Resolved => "네트워크 장애가 복구되었습니다.".into(),
     }

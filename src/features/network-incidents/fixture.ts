@@ -7,7 +7,7 @@ export const ongoingIncidentFixture: NetworkIncident = {
   startedAt: "2026-06-30T00:02:00Z",
   lastObservedAt: "2026-06-30T00:02:20Z",
   resolvedAt: null,
-  summary: "공유기 또는 로컬 연결 구간에서 이상 근거가 반복 확인되었습니다.",
+  summary: "내 PC 또는 공유기에서 문제 근거가 확인되었습니다.",
   representativeEvidence: [
     {
       source: "gateway",
@@ -26,7 +26,7 @@ export const recoveringIncidentFixture: NetworkIncident = {
   status: "recovering",
   startedAt: "2026-06-30T00:01:00Z",
   lastObservedAt: "2026-06-30T00:01:20Z",
-  summary: "공유기 또는 로컬 연결 구간의 정상 근거를 추가 확인하고 있습니다.",
+  summary: "내 PC 또는 공유기가 정상으로 돌아왔는지 확인하고 있습니다.",
 };
 
 export const resolvedIncidentFixture: NetworkIncident = {
@@ -43,7 +43,7 @@ export const unknownIncidentFixture: NetworkIncident = {
   ...ongoingIncidentFixture,
   id: 4,
   area: "unknown",
-  summary: "확인 불가 구간에서 이상 근거가 반복 확인되었습니다.",
+  summary: "확인 불가 상태로 저장된 장애 기록입니다.",
 };
 
 export const incidentWithoutEvidenceFixture: NetworkIncident = {

@@ -97,7 +97,7 @@ mod tests {
                 .create_incident(
                     DiagnosticArea::External,
                     &format!("2026-06-30T00:00:0{index}Z"),
-                    "외부 연결 구간에서 이상 근거가 반복 확인되었습니다.",
+                    "외부 연결에서 문제 근거가 확인되었습니다.",
                     &[DiagnosticEvidence {
                         source: EvidenceSource::HttpGoogle,
                         status: EvidenceStatus::Timeout,
@@ -122,7 +122,7 @@ mod tests {
                 .create_incident(
                     DiagnosticArea::External,
                     &format!("2026-06-30T00:00:0{index}Z"),
-                    "외부 연결 구간에서 이상 근거가 반복 확인되었습니다.",
+                    "외부 연결에서 문제 근거가 확인되었습니다.",
                     &[DiagnosticEvidence {
                         source: EvidenceSource::HttpGoogle,
                         status: EvidenceStatus::Timeout,

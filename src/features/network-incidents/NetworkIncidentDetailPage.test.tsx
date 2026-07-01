@@ -16,7 +16,7 @@ describe("NetworkIncidentDetailPage", () => {
       screen.getByRole("heading", { name: "장애 상세" }),
     ).toBeInTheDocument();
     expect(screen.getByText("진행 중")).toBeInTheDocument();
-    expect(screen.getByText("공유기 또는 로컬 연결 구간")).toBeInTheDocument();
+    expect(screen.getByText("내 PC 또는 공유기")).toBeInTheDocument();
     expect(screen.getByText("아직 복구 기록 없음")).toBeInTheDocument();
     expect(screen.getByText("대표 근거")).toBeInTheDocument();
     expect(screen.getByText("게이트웨이")).toBeInTheDocument();

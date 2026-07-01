@@ -1,7 +1,7 @@
 .shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 32px 20px 48px;
+  padding: 24px 20px 48px;
 }
 
 .page-header {
@@ -12,20 +12,12 @@
 
 .back-button {
   justify-self: start;
-  border: 1px solid #304563;
+  border: 1px solid transparent;
   border-radius: 8px;
-  padding: 8px 11px;
+  padding: 7px 9px;
   color: #d7e1ee;
-  background: #101827;
+  background: #18202b;
   cursor: pointer;
-}
-
-.eyebrow {
-  margin: 0 0 8px;
-  color: #79b8ff;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
 }
 
 .page-header h1 {
@@ -54,18 +46,18 @@
 
 .filters select {
   min-width: 0;
-  border: 1px solid #304563;
+  border: 1px solid #202b38;
   border-radius: 8px;
   padding: 8px 10px;
   color: #d7e1ee;
-  background: #101827;
+  background: #111720;
 }
 
 .panel {
-  border: 1px solid #304563;
+  border: 1px solid #202b38;
   border-radius: 10px;
-  padding: 18px;
-  background: #101827;
+  padding: 20px;
+  background: #111720;
 }
 
 .muted {
@@ -87,7 +79,7 @@
   gap: 12px;
   align-items: center;
   min-height: 42px;
-  border-top: 1px solid #263b57;
+  border-top: 1px solid rgba(143, 158, 178, 0.14);
   color: #9fb0c8;
   font-size: 0.78rem;
 }
@@ -113,16 +105,16 @@
 }
 
 .row-selected {
-  background: #142033;
+  background: #0d131b;
 }
 
 .detail-button,
 .close-button {
-  border: 1px solid #304563;
+  border: 1px solid transparent;
   border-radius: 8px;
   padding: 7px 9px;
   color: #d7e1ee;
-  background: #0d1522;
+  background: #18202b;
   cursor: pointer;
 }
 
@@ -132,10 +124,10 @@
 }
 
 .detail {
-  border: 1px solid #304563;
+  border: 1px solid #202b38;
   border-radius: 10px;
-  padding: 16px;
-  background: #0d1522;
+  padding: 18px;
+  background: #0d131b;
 }
 
 .detail-header {
@@ -148,7 +140,8 @@
 
 .detail-header h2 {
   margin: 0;
-  font-size: 1rem;
+  color: #f4f8ff;
+  font-size: 1.12rem;
 }
 
 .detail-summary {
@@ -223,11 +216,11 @@
 
 .selection-hint {
   margin: 0;
-  border: 1px dashed #304563;
+  border: 1px dashed #202b38;
   border-radius: 10px;
   padding: 16px;
   color: #9fb0c8;
-  background: #0d1522;
+  background: #0d131b;
 }
 
 @media (max-width: 1040px) {

@@ -286,7 +286,7 @@ function descriptionForStatus(status: NetworkDiagnosticStatus) {
   }
 
   if (status.lifecycle === "incident") {
-    return "호환되는 이상이 반복 확인되었습니다.";
+    return "문제 근거가 확인되었습니다.";
   }
 
   if (status.lifecycle === "recovering") {
@@ -318,7 +318,7 @@ function reasonForStatus(status: NetworkDiagnosticStatus) {
   const evidenceLabel = evidenceLabels[evidence.status];
 
   if (status.lifecycle === "incident") {
-    return `${areaLabel}에서 ${evidenceLabel} 근거가 반복 확인되었습니다.`;
+    return `${areaLabel}에서 ${evidenceLabel} 근거가 확인되었습니다.`;
   }
 
   if (status.lifecycle === "recovering") {

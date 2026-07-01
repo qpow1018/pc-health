@@ -189,7 +189,7 @@ const gatewayIncident: NetworkIncident = {
   startedAt: "2026-07-01T01:25:00Z",
   lastObservedAt: "2026-07-01T01:25:20Z",
   resolvedAt: null,
-  summary: "공유기 또는 로컬 연결 구간에서 시간 초과 근거가 반복 확인되었습니다.",
+  summary: "내 PC 또는 공유기에서 시간 초과 근거가 확인되었습니다.",
   representativeEvidence: [
     {
       source: "gateway",
@@ -209,7 +209,7 @@ const dnsIncident: NetworkIncident = {
   startedAt: "2026-07-01T01:26:00Z",
   lastObservedAt: "2026-07-01T01:26:12Z",
   resolvedAt: null,
-  summary: "DNS에서 시간 초과 근거가 반복 확인되었습니다.",
+  summary: "DNS에서 시간 초과 근거가 확인되었습니다.",
   representativeEvidence: [
     {
       source: "dns_microsoft",
@@ -237,7 +237,7 @@ const externalIncident: NetworkIncident = {
   startedAt: "2026-07-01T01:27:00Z",
   lastObservedAt: "2026-07-01T01:27:08Z",
   resolvedAt: null,
-  summary: "외부 연결 구간에서 시간 초과 근거가 반복 확인되었습니다.",
+  summary: "외부 연결에서 시간 초과 근거가 확인되었습니다.",
   representativeEvidence: [
     {
       source: "http_microsoft",
@@ -264,7 +264,7 @@ const recoveringIncident: NetworkIncident = {
   status: "recovering",
   startedAt: "2026-07-01T01:22:00Z",
   lastObservedAt: "2026-07-01T01:28:24Z",
-  summary: "공유기 또는 로컬 연결 구간의 정상 근거를 추가 확인하고 있습니다.",
+  summary: "내 PC 또는 공유기가 정상으로 돌아왔는지 확인하고 있습니다.",
   representativeEvidence: [
     {
       source: "gateway",
@@ -295,7 +295,7 @@ const unknownIncident: NetworkIncident = {
   startedAt: "2026-07-01T00:35:00Z",
   lastObservedAt: "2026-07-01T00:36:00Z",
   resolvedAt: "2026-07-01T00:36:00Z",
-  summary: "확인 불가 구간에서 이상 근거가 반복 확인되었습니다.",
+  summary: "확인 불가 상태로 저장된 장애 기록입니다.",
   representativeEvidence: [],
 };
 

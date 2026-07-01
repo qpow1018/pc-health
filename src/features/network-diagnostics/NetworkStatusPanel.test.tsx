@@ -154,7 +154,7 @@ describe("NetworkStatusPanel", () => {
     [
       "incident",
       "gateway_or_local",
-      "호환되는 이상이 반복 확인되었습니다.",
+      "문제 근거가 확인되었습니다.",
     ],
     [
       "recovering",
@@ -186,7 +186,7 @@ describe("NetworkStatusPanel", () => {
     expect(
       await screen.findAllByText("Windows 앱에서만 확인할 수 있습니다."),
     ).toHaveLength(2);
-    expect(screen.queryByText("호환되는 이상이 반복 확인되었습니다.")).not.toBeInTheDocument();
+    expect(screen.queryByText("문제 근거가 확인되었습니다.")).not.toBeInTheDocument();
   });
 
   it("shows incident area and evidence without claiming an exact device cause", async () => {
@@ -207,7 +207,7 @@ describe("NetworkStatusPanel", () => {
 
     expect(
       await screen.findByText(
-        "내 PC 또는 공유기에서 시간 초과 근거가 반복 확인되었습니다.",
+        "내 PC 또는 공유기에서 시간 초과 근거가 확인되었습니다.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("문제가 확인됨")).toBeInTheDocument();
