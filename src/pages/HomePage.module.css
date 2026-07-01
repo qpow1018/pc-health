@@ -1,6 +1,5 @@
 .app-header {
-  border-bottom: 1px solid #263b57;
-  background: #0b1220;
+  background: rgba(9, 13, 18, 0.92);
 }
 
 .app-header-inner {
@@ -13,28 +12,30 @@
 }
 
 .brand {
-  color: #f4f8ff;
+  color: #e7edf5;
   font-size: 0.95rem;
 }
 
 .nav {
   display: flex;
-  gap: 6px;
+  gap: 2px;
+  border-radius: 9px;
+  padding: 3px;
+  background: #131922;
 }
 
 .nav button {
   border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 7px 10px;
-  color: #9fb0c8;
+  border-radius: 7px;
+  padding: 6px 10px;
+  color: #9aa6b5;
   background: transparent;
   cursor: pointer;
 }
 
 .nav button[aria-current="page"] {
-  border-color: #304563;
-  color: #f4f8ff;
-  background: #101827;
+  color: #f7fbff;
+  background: #263141;
 }
 
 @media (max-width: 700px) {
