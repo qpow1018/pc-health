@@ -1,6 +1,6 @@
-# PC Health UI Guidelines
+# Net Checker UI Guidelines
 
-이 문서는 기능이 늘어도 PC Health UI가 같은 제품처럼 보이도록 돕는 최소 규칙이다. 새 디자인 시스템을 만들기보다 현재 대시보드의 방향을 기준으로 확장한다.
+이 문서는 기능이 늘어도 Net Checker UI가 같은 제품처럼 보이도록 돕는 최소 규칙이다. 새 디자인 시스템을 만들기보다 현재 대시보드의 방향을 기준으로 확장한다.
 
 ## Product Feel
 

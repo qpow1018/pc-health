@@ -2,7 +2,7 @@
 
 ## 제품 범위
 
-- PC Health는 개인용 Windows PC의 인터넷 장애 진단을 다루는 Tauri + React + Rust 데스크톱 앱이다.
+- Net Checker는 개인용 Windows PC의 인터넷 장애 진단을 다루는 Tauri + React + Rust 데스크톱 앱이다.
 - 인터넷 장애 진단은 승인된 설계를 가진 유일한 `active` 제품 영역이다.
 - 성능 모니터링은 제품에서 제거되었다. LibreHardwareMonitor, sensor helper, hardware telemetry 구조를 되살리지 않는다.
 - 기본 원칙은 읽기 전용과 근거 기반 판정이다. 근거가 부족하면 성공이나 원인 확정 대신 `unknown` 또는 `확인 불가`를 사용한다.

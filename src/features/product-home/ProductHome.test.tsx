@@ -22,12 +22,12 @@ describe("ProductHome", () => {
     render(<ProductHome onOpenIncidentHistory={vi.fn()} />);
 
     expect(
-      screen.queryByRole("heading", { name: "PC Health" }),
+      screen.queryByRole("heading", { name: "Net Checker" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("READ-ONLY PC DIAGNOSTICS")).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        /인터넷 장애의 원인 구간을 근거와 함께 구분하는 Windows 유틸리티입니다\./,
+        /인터넷 연결 문제를 근거와 함께 확인하는 Windows 유틸리티입니다\./,
       ),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("인터넷 장애 진단")).not.toBeInTheDocument();

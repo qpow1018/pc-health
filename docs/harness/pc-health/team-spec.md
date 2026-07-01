@@ -1,8 +1,8 @@
-# PC Health 하네스 팀 명세
+# Net Checker 하네스 팀 명세
 
 ## 목적
 
-이 하네스는 PC Health의 인터넷 장애 진단 구현을 안내한다. 기본 구조는 순차 pipeline이며 위험하거나 경계를 넘는 작업 끝에 QA 검토를 붙인다.
+이 하네스는 Net Checker의 인터넷 장애 진단 구현을 안내한다. 기본 구조는 순차 pipeline이며 위험하거나 경계를 넘는 작업 끝에 QA 검토를 붙인다.
 
 ## 제품 Lifecycle
 
