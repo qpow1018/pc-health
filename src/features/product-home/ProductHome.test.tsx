@@ -18,13 +18,12 @@ vi.mock("@/features/network-incidents/RecentIncidentsPanel", () => ({
 }));
 
 describe("ProductHome", () => {
-  it("shows network diagnostics as the only product area", () => {
+  it("shows network diagnostics as a compact header status", () => {
     render(<ProductHome onOpenIncidentHistory={vi.fn()} />);
 
-    expect(
-      screen.getByRole("heading", { name: "인터넷 장애 진단" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("인터넷 장애 진단")).toBeInTheDocument();
     expect(screen.getByText("활성")).toBeInTheDocument();
+    expect(screen.queryByLabelText("제품 영역")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "드라이버 관리" }),
     ).not.toBeInTheDocument();

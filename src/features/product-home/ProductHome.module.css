@@ -1,18 +1,22 @@
 .shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 40px 28px;
+  padding: 24px 28px 36px;
 }
 
 .header {
-  margin-bottom: 24px;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
 
   h1 {
     margin: 0;
-    font-size: clamp(2rem, 4vw, 3rem);
+    font-size: 1.8rem;
   }
 
-  > p:last-child {
+  > div:first-child > p:last-child {
     margin: 10px 0 0;
     color: #8fa3bf;
   }
@@ -26,16 +30,13 @@
   letter-spacing: 0.14em;
 }
 
-.areas {
+.product-status {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.area {
+  gap: 4px;
+  min-width: 180px;
   border: 1px solid #304563;
-  border-radius: 10px;
-  padding: 18px;
+  border-radius: 8px;
+  padding: 10px 12px;
   background: #101827;
 
   span {
@@ -44,24 +45,23 @@
     font-weight: 700;
   }
 
-  h2 {
-    margin: 8px 0;
-    font-size: 1.1rem;
-  }
-
-  p {
+  strong {
     margin: 0;
-    color: #9fb0c8;
-    line-height: 1.6;
+    color: #d7e1ee;
+    font-size: 0.9rem;
   }
 }
 
 @media (max-width: 700px) {
   .shell {
-    padding: 28px 18px;
+    padding: 20px 18px 32px;
   }
 
-  .areas {
-    grid-template-columns: 1fr;
+  .header {
+    display: grid;
+  }
+
+  .product-status {
+    min-width: 0;
   }
 }
