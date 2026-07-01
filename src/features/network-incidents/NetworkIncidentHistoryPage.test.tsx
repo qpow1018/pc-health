@@ -196,4 +196,18 @@ describe("NetworkIncidentHistoryPage", () => {
       screen.queryByRole("button", { name: /내보내기|export/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("keeps the detail area stacked below the incident list to avoid overlap", async () => {
+    // @ts-expect-error Node fs types are not part of the browser app build.
+    const { readFileSync } = await import("node:fs");
+    const historyPageCss = readFileSync(
+      "src/features/network-incidents/NetworkIncidentHistoryPage.module.css",
+      "utf8",
+    );
+
+    expect(historyPageCss).toMatch(
+      /\.content\s*{[^}]*grid-template-columns:\s*1fr;/s,
+    );
+    expect(historyPageCss).not.toMatch(/\.content\s*{[^}]*minmax\(300px/s);
+  });
 });
