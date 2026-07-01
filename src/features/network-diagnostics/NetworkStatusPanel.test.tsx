@@ -196,7 +196,7 @@ describe("NetworkStatusPanel", () => {
     render(<NetworkStatusPanel />);
 
     expect(
-      await screen.findByText("공유기 또는 로컬 연결 구간"),
+      await screen.findByText("내 PC 또는 공유기"),
     ).toBeInTheDocument();
     expect(screen.getByText("장애 확인")).toBeInTheDocument();
     expect(screen.getByText("기본 게이트웨이 응답 시간 초과")).toBeInTheDocument();
@@ -209,10 +209,10 @@ describe("NetworkStatusPanel", () => {
 
     expect(
       await screen.findByText(
-        "공유기 또는 로컬 연결 구간에서 시간 초과 근거가 반복 확인되었습니다.",
+        "내 PC 또는 공유기에서 시간 초과 근거가 반복 확인되었습니다.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("장애 근거 확인됨")).toBeInTheDocument();
+    expect(screen.getByText("문제가 확인됨")).toBeInTheDocument();
     expect(screen.queryByText(/공유기 고장|케이블 불량|자동 복구/)).not.toBeInTheDocument();
   });
 

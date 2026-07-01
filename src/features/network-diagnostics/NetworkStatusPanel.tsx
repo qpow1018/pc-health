@@ -26,10 +26,10 @@ const lifecycleLabels: Record<DiagnosticLifecycle, string> = {
 };
 
 const areaLabels: Record<DiagnosticArea, string> = {
-  local_connection: "로컬 연결 구간",
-  gateway_or_local: "공유기 또는 로컬 연결 구간",
+  local_connection: "내 PC 연결",
+  gateway_or_local: "내 PC 또는 공유기",
   dns: "DNS",
-  external: "외부 연결 구간",
+  external: "외부 연결",
   unknown: "확인 불가",
 };
 
@@ -326,7 +326,7 @@ function progressForStatus(status: NetworkDiagnosticStatus) {
   }
 
   if (status.lifecycle === "suspected") return "추가 근거 확인 중";
-  if (status.lifecycle === "incident") return "장애 근거 확인됨";
+  if (status.lifecycle === "incident") return "문제가 확인됨";
   return "복구 근거 확인 중";
 }
 
