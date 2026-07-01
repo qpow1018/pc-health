@@ -343,6 +343,31 @@ function progressForStatus(status: NetworkDiagnosticStatus) {
   return "정상으로 돌아왔는지 확인 중";
 }
 
+function recommendedCheckForStatus(status: NetworkDiagnosticStatus) {
+  if (status.availability === "starting") {
+    return "첫 확인이 끝날 때까지 잠시 기다리세요.";
+  }
+  if (status.availability !== "running" || !status.lifecycle) {
+    return "Windows 앱에서 다시 확인하세요.";
+  }
+  if (status.lifecycle === "normal" || status.lifecycle === "resolved") {
+    return "현재는 추가 확인이 필요하지 않습니다.";
+  }
+  if (status.suspectedArea === "local_connection") {
+    return "랜 케이블 연결과 Windows 어댑터 사용 상태를 확인하세요.";
+  }
+  if (status.suspectedArea === "gateway_or_local") {
+    return "같은 공유기의 다른 기기도 함께 끊기는지 확인하세요.";
+  }
+  if (status.suspectedArea === "dns") {
+    return "웹사이트 주소 대신 IP 연결이나 다른 앱 연결도 함께 확인하세요.";
+  }
+  if (status.suspectedArea === "external") {
+    return "다른 기기에서도 외부 사이트 접속이 느리거나 끊기는지 확인하세요.";
+  }
+  return "근거가 더 쌓일 때까지 현재 상태를 지켜보세요.";
+}
+
 export default function NetworkStatusPanel() {
   const [available] = useState(canUseNetworkDiagnostics);
   const [status, setStatus] = useState<NetworkDiagnosticStatus>(
@@ -389,6 +414,7 @@ export default function NetworkStatusPanel() {
   const statusDescription = descriptionForStatus(status);
   const reasonLabel = reasonForStatus(status);
   const progressLabel = progressForStatus(status);
+  const recommendedCheck = recommendedCheckForStatus(status);
   const visualLifecycle =
     status.availability === "running" ? status.lifecycle : null;
   const pathStages = buildPathStages(status.evidence);
@@ -475,6 +501,10 @@ export default function NetworkStatusPanel() {
         <div>
           <dt>진행 상태</dt>
           <dd>{progressLabel}</dd>
+        </div>
+        <div>
+          <dt>권장 확인</dt>
+          <dd>{recommendedCheck}</dd>
         </div>
         <div>
           <dt>마지막 확인</dt>

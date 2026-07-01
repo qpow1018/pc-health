@@ -214,6 +214,16 @@ describe("NetworkStatusPanel", () => {
     expect(screen.queryByText(/공유기 고장|케이블 불량|자동 복구/)).not.toBeInTheDocument();
   });
 
+  it("shows a read-only recommended check for the suspected area", async () => {
+    getStatusMock.mockResolvedValue(incidentStatusFixture);
+    render(<NetworkStatusPanel />);
+
+    expect(
+      await screen.findByText("같은 공유기의 다른 기기도 함께 끊기는지 확인하세요."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/자동 복구|설정 변경|재시작/)).not.toBeInTheDocument();
+  });
+
   it("shows a waiting progress state before the first observation", () => {
     render(<NetworkStatusPanel />);
 
